@@ -2689,15 +2689,70 @@
       }
     }
 
-    // Client-side source-code blokkades zijn verwijderd: ze beveiligen geen HTML/JS.
-    // De echte toegangscontrole, deelcodes en gedeelde data worden door de API afgedwongen.
+    // Glass Wave deployment gate. This is a deterrent, not cryptographic source protection.
+    // GitHub Pages serves public HTML/JS, so never put secrets in this file.
+    const GW_CANONICAL_HOST = 'royiess.github.io';
+    const GW_CANONICAL_PATH = '/SICKerstmis/';
+    let gwBlockedOverlay = null;
+    let gwGateObserver = null;
+
+    function gwIsCanonicalDeployment() {
+      const path = window.location.pathname;
+      const normalizedPath = path.endsWith('/') ? path : `${path}/`;
+      return window.location.protocol === 'https:' &&
+        window.location.hostname.toLowerCase() === GW_CANONICAL_HOST &&
+        normalizedPath === GW_CANONICAL_PATH;
+    }
+
+    function gwShowDeploymentBlock() {
+      if (!document.body) return;
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      document.body.inert = true;
+
+      if (!gwBlockedOverlay || !gwBlockedOverlay.isConnected) {
+        gwBlockedOverlay = document.createElement('div');
+        gwBlockedOverlay.id = 'gw-closed-source-block';
+        gwBlockedOverlay.setAttribute('role', 'alertdialog');
+        gwBlockedOverlay.setAttribute('aria-modal', 'true');
+        gwBlockedOverlay.style.cssText = [
+          'position:fixed', 'inset:0', 'z-index:2147483647', 'display:flex',
+          'align-items:center', 'justify-content:center', 'padding:24px',
+          'background:radial-gradient(ellipse at 50% 20%,rgba(249,115,22,.16),transparent 55%),#05070d',
+          'color:#f8fafc', 'font-family:Inter,Arial,sans-serif', 'text-align:center'
+        ].join(';');
+        gwBlockedOverlay.innerHTML = `
+          <section style="width:min(560px,100%);padding:36px 28px;border:1px solid rgba(251,146,60,.38);border-radius:28px;background:linear-gradient(145deg,rgba(30,41,59,.92),rgba(8,13,25,.97));box-shadow:0 24px 90px rgba(0,0,0,.7),0 0 45px rgba(249,115,22,.10);backdrop-filter:blur(24px)">
+            <div style="width:58px;height:58px;margin:0 auto 20px;border-radius:18px;display:grid;place-items:center;background:rgba(249,115,22,.13);border:1px solid rgba(251,146,60,.45);font-size:30px;color:#fb923c">!</div>
+            <div style="font-size:11px;font-weight:800;letter-spacing:.24em;color:#fdba74">SIC CORP · CLOSED SOURCE</div>
+            <h1 style="margin:12px 0;font-size:clamp(25px,5vw,36px);font-weight:850;letter-spacing:-.04em">Website geblokkeerd</h1>
+            <p style="margin:0 auto;max-width:420px;color:#cbd5e1;line-height:1.7;font-size:14px">Deze Glass Wave-installatie is alleen beschikbaar via het officiële SIC Corp-domein en de goedgekeurde projectlocatie.</p>
+            <div style="margin:22px 0 0;padding:12px 14px;border:1px solid rgba(148,163,184,.18);border-radius:14px;background:rgba(15,23,42,.7);font:12px ui-monospace,monospace;color:#fdba74;overflow-wrap:anywhere">royiess.github.io/SICKerstmis/</div>
+            <p style="margin:18px 0 0;color:#64748b;font-size:11px">Ongeautoriseerde domeinen en gewijzigde projectlocaties worden geweigerd.</p>
+          </section>`;
+        document.body.appendChild(gwBlockedOverlay);
+      }
+    }
+
     function applyCopyAndDomainGuard() {
-      return true;
+      if (gwIsCanonicalDeployment()) return true;
+      gwShowDeploymentBlock();
+      // Keep the blocking screen present if ordinary page scripts remove or replace it.
+      if (!gwGateObserver) {
+        gwGateObserver = new MutationObserver(() => {
+          if (!gwBlockedOverlay?.isConnected) gwShowDeploymentBlock();
+        });
+        gwGateObserver.observe(document.documentElement, { childList: true, subtree: true });
+      }
+      window.setInterval(() => {
+        if (gwIsCanonicalDeployment()) return;
+        if (!gwBlockedOverlay?.isConnected) gwShowDeploymentBlock();
+      }, 750);
+      return false;
     }
 
     window.addEventListener('DOMContentLoaded', () => {
       if (!applyCopyAndDomainGuard()) {
-        initThreeGlobeAndSnow();
         return;
       }
       bindEvents();
