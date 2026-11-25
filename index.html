@@ -674,7 +674,7 @@
             <input
               id="shareCodeInput"
               type="text"
-              placeholder="BIJV. KERST-2026"
+              placeholder="BIJV. GW-ABCD-EFGH-IJKL"
               class="flex-1 glass-card rounded-xl px-4 py-2.5 text-sm uppercase tracking-wider text-white placeholder-slate-400/70 focus:outline-none focus:border-sky-400/60"
             />
             <div class="mobile-share-actions flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
@@ -712,6 +712,12 @@
               <span id="activeParticipantText" class="font-bold text-amber-300">Niet ingesteld</span>
             </div>
           </div>
+          <div class="flex flex-wrap gap-2">
+            <button id="exportJsonBtn" type="button" class="glass-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-sky-200">Export .json</button>
+            <button id="importJsonBtn" type="button" class="glass-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-emerald-300">Import .json</button>
+            <input id="importJsonInput" type="file" accept=".json,application/json" class="hidden" />
+          </div>
+          <p class="text-[11px] text-slate-400/80">Back-up of herstel van je lijst. Deelcodes synchroniseren online via de SIC Corp API.</p>
         </div>
 
         <!-- Waarschuwingskaart met Glass Wave Error Triangle -->
@@ -1109,6 +1115,236 @@
 
   <script>
     const STORAGE_KEY = 'gw_kerstlijst_2026_v2';
+    // Configureer dit op GitHub Pages naar je HTTPS FastAPI-adres.
+    // Bijvoorbeeld: window.GW_API_BASE = 'https://api.jouwdomein.nl';
+    const GW_API_BASE = (window.GW_API_BASE || '').replace(/\/$/, '');
+    const GW_API_ENABLED = Boolean(GW_API_BASE);
+    const GW_SYNC_DEBOUNCE_MS = 650;
+    const GW_MAX_IMPORT_BYTES = 1_000_000;
+    let gwSyncTimer = null;
+    let gwSyncInProgress = false;
+    let gwApplyingRemote = false;
+    let gwShareVersion = 0;
+    let gwLastSyncAt = 0;
+
+    function gwTokenStorageKey(code) {
+      return `gw_share_token_${String(code || '').toUpperCase()}`;
+    }
+
+    function gwGetShareToken(code = state.shareCode) {
+      try { return localStorage.getItem(gwTokenStorageKey(code)) || ''; }
+      catch (_) { return ''; }
+    }
+
+    function gwSetShareToken(code, token) {
+      try { localStorage.setItem(gwTokenStorageKey(code), token); }
+      catch (_) { showToast('Kon de beveiligde toegangssleutel niet lokaal opslaan.'); }
+    }
+
+    function gwRemoveShareToken(code) {
+      try { localStorage.removeItem(gwTokenStorageKey(code)); } catch (_) {}
+    }
+
+    async function gwApi(path, options = {}) {
+      if (!GW_API_ENABLED) throw new Error('De API is nog niet ingesteld. Configureer GW_API_BASE in index.html.');
+      const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+      const token = options.token || gwGetShareToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const response = await fetch(`${GW_API_BASE}${path}`, {
+        ...options,
+        headers,
+        credentials: 'omit',
+        cache: 'no-store'
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = body.detail || `API-fout (${response.status})`;
+        throw new Error(typeof message === 'string' ? message : JSON.stringify(message));
+      }
+      return body;
+    }
+
+    function gwSharedPayload() {
+      return {
+        budgetTarget: Number(state.budgetTarget) || 400,
+        items: Array.isArray(state.items) ? state.items : [],
+        deletedItems: Array.isArray(state.deletedItems) ? state.deletedItems : [],
+        logs: Array.isArray(state.logs) ? state.logs.slice(0, 60) : []
+      };
+    }
+
+    function gwApplySharedPayload(payload) {
+      if (!payload || typeof payload !== 'object') throw new Error('De server stuurde ongeldige lijstgegevens.');
+      gwApplyingRemote = true;
+      state.budgetTarget = Number(payload.budgetTarget) || 400;
+      state.items = Array.isArray(payload.items) ? payload.items : [];
+      state.deletedItems = Array.isArray(payload.deletedItems) ? payload.deletedItems : [];
+      state.logs = Array.isArray(payload.logs) ? payload.logs.slice(0, 60) : [];
+      saveState();
+      gwApplyingRemote = false;
+      renderHeaderAndSync();
+      renderWishlist();
+      renderDeletedModal();
+      renderActivityLog();
+    }
+
+    function gwScheduleSync() {
+      if (!GW_API_ENABLED || gwApplyingRemote || !hasActiveShare() || !gwGetShareToken()) return;
+      clearTimeout(gwSyncTimer);
+      gwSyncTimer = setTimeout(() => gwPushSharedState(), GW_SYNC_DEBOUNCE_MS);
+    }
+
+    async function gwPushSharedState() {
+      if (!GW_API_ENABLED || gwApplyingRemote || gwSyncInProgress || !hasActiveShare()) return;
+      const token = gwGetShareToken();
+      if (!token) return;
+      gwSyncInProgress = true;
+      try {
+        const result = await gwApi(`/api/shares/${encodeURIComponent(state.shareCode)}/state`, {
+          method: 'PUT',
+          token,
+          body: JSON.stringify({ state: gwSharedPayload(), version: gwShareVersion })
+        });
+        gwShareVersion = result.version;
+        gwLastSyncAt = Date.now();
+      } catch (error) {
+        console.error('Glass Wave sync error:', error);
+        showToast(`Synchronisatie mislukt: ${error.message}`);
+      } finally {
+        gwSyncInProgress = false;
+      }
+    }
+
+    async function gwPullSharedState() {
+      const result = await gwApi(`/api/shares/${encodeURIComponent(state.shareCode)}/state`, {
+        method: 'GET'
+      });
+      gwShareVersion = result.version || 0;
+      gwApplySharedPayload(result.state);
+    }
+
+    async function gwPollSharedState() {
+      if (!GW_API_ENABLED || !hasActiveShare() || !gwGetShareToken() || gwSyncInProgress) return;
+      try {
+        const result = await gwApi(`/api/shares/${encodeURIComponent(state.shareCode)}/state`, { method: 'GET' });
+        if (Number(result.version) > gwShareVersion) {
+          gwShareVersion = Number(result.version);
+          gwApplySharedPayload(result.state);
+          showToast('Gedeelde lijst bijgewerkt.');
+        }
+      } catch (error) {
+        console.warn('Glass Wave polling:', error);
+      }
+    }
+
+    async function gwCreateShare(name) {
+      const result = await gwApi('/api/shares', {
+        method: 'POST',
+        body: JSON.stringify({ name, state: gwSharedPayload() })
+      });
+      state.userName = name;
+      state.shareCode = result.code;
+      gwSetShareToken(result.code, result.access_token);
+      gwShareVersion = result.version || 1;
+      addLogEntry(`${name} heeft een nieuwe gedeelde lijst aangemaakt.`);
+      saveState();
+      renderHeaderAndSync();
+      renderActivityLog();
+      showToast(`Deelcode aangemaakt: ${result.code}`);
+    }
+
+    async function gwJoinShare(name, code) {
+      const result = await gwApi(`/api/shares/${encodeURIComponent(code)}/join`, {
+        method: 'POST',
+        body: JSON.stringify({ name })
+      });
+      state.userName = name;
+      state.shareCode = result.code;
+      gwSetShareToken(result.code, result.access_token);
+      gwShareVersion = result.version || 1;
+      gwApplySharedPayload(result.state);
+      addLogEntry(`${name} is verbonden met de gedeelde lijst.`);
+      saveState();
+      renderHeaderAndSync();
+      renderActivityLog();
+      showToast(`Verbonden met ${result.code}.`);
+    }
+
+    function gwExportJson() {
+      const backup = {
+        format: 'sic-corp-glass-wave-wishlist',
+        schemaVersion: 1,
+        exportedAt: new Date().toISOString(),
+        data: gwSharedPayload()
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `glass-wave-kerstlijst-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('JSON-back-up geëxporteerd.');
+    }
+
+    function gwValidateImportedItem(item) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+      const name = String(item.name || '').trim().slice(0, 120);
+      if (!name) return null;
+      const rawLink = String(item.link || '').trim().slice(0, 2048);
+      let safeLink = '';
+      if (rawLink) {
+        try {
+          const u = new URL(normalizeUrl(rawLink));
+          if (u.protocol === 'https:' || u.protocol === 'http:') safeLink = u.href;
+        } catch (_) {}
+      }
+      return {
+        id: `item-${crypto.randomUUID ? crypto.randomUUID() : Date.now() + Math.random()}`,
+        name,
+        price: Math.max(0, Math.min(1_000_000, Number(item.price) || 0)),
+        category: CATEGORIES.includes(item.category) ? item.category : 'Tech & Gear',
+        link: safeLink,
+        note: String(item.note || '').slice(0, 1000),
+        checked: Boolean(item.checked),
+        surpriseShare: Boolean(item.surpriseShare)
+      };
+    }
+
+    async function gwImportJson(file) {
+      if (!file) return;
+      if (file.size > GW_MAX_IMPORT_BYTES) throw new Error('Het JSON-bestand is groter dan 1 MB.');
+      const parsed = JSON.parse(await file.text());
+      if (!parsed || parsed.format !== 'sic-corp-glass-wave-wishlist' || parsed.schemaVersion !== 1 || !parsed.data) {
+        throw new Error('Dit is geen ondersteunde Glass Wave JSON-back-up.');
+      }
+      if (!Array.isArray(parsed.data.items) || parsed.data.items.length > 500 ||
+          !Array.isArray(parsed.data.deletedItems || []) || (parsed.data.deletedItems || []).length > 500) {
+        throw new Error('De JSON bevat te veel of ongeldige items.');
+      }
+      const importedItems = parsed.data.items.map(gwValidateImportedItem).filter(Boolean);
+      const importedDeleted = (parsed.data.deletedItems || []).map(gwValidateImportedItem).filter(Boolean);
+      state.items = importedItems;
+      state.deletedItems = importedDeleted;
+      state.budgetTarget = Math.max(1, Math.min(1_000_000, Number(parsed.data.budgetTarget) || 400));
+      state.logs = Array.isArray(parsed.data.logs)
+        ? parsed.data.logs.slice(0, 60).map((entry) => ({
+            id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            text: String(entry?.text || '').slice(0, 500),
+            time: String(entry?.time || '').slice(0, 20)
+          }))
+        : [];
+      addLogEntry('Lijst hersteld vanuit een JSON-back-up.');
+      saveState();
+      renderHeaderAndSync();
+      renderWishlist();
+      renderDeletedModal();
+      renderActivityLog();
+      await gwPushSharedState();
+      showToast('JSON-back-up geïmporteerd.');
+    }
     const CATEGORIES = ['Alles', 'Tech & Gear', 'DIY Smart Glasses', 'Gaming & Coins', 'Home & Living'];
 
     const DEFAULT_STATE = {
@@ -1317,6 +1553,7 @@
       } catch (err) {
         console.error('Fout bij opslaan van state:', err);
       }
+      gwScheduleSync();
     }
 
     function formatEuro(amount) {
@@ -1769,10 +2006,14 @@
       filteredLogs.forEach((entry) => {
         const row = document.createElement('div');
         row.className = 'glass-card rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-xs sm:text-sm';
-        row.innerHTML = `
-          <span class="text-slate-100">${entry.text}</span>
-          <span class="text-sky-300/90 font-semibold shrink-0">${entry.time}</span>
-        `;
+        const message = document.createElement('span');
+        message.className = 'text-slate-100';
+        message.textContent = entry.text || '';
+        const time = document.createElement('span');
+        time.className = 'text-sky-300/90 font-semibold shrink-0';
+        time.textContent = entry.time || '';
+        row.appendChild(message);
+        row.appendChild(time);
         listEl.appendChild(row);
       });
     }
@@ -1812,10 +2053,14 @@
 
         const info = document.createElement('div');
         info.className = 'min-w-0';
-        info.innerHTML = `
-          <div class="text-sm font-bold text-white truncate">${item.name}</div>
-          <div class="text-xs text-sky-300 font-semibold">${formatEuro(item.price)} • ${item.category}</div>
-        `;
+        const itemName = document.createElement('div');
+        itemName.className = 'text-sm font-bold text-white truncate';
+        itemName.textContent = item.name || '';
+        const itemMeta = document.createElement('div');
+        itemMeta.className = 'text-xs text-sky-300 font-semibold';
+        itemMeta.textContent = `${formatEuro(item.price)} • ${item.category || 'Overig'}`;
+        info.appendChild(itemName);
+        info.appendChild(itemMeta);
 
         const restoreBtn = document.createElement('button');
         restoreBtn.type = 'button';
@@ -1972,41 +2217,27 @@
         });
       }
 
-      document.getElementById('joinShareCodeBtn').addEventListener('click', () => {
+      document.getElementById('joinShareCodeBtn').addEventListener('click', async () => {
         const nameVal = (document.getElementById('shareNameInput').value || state.userName || '').trim();
         const codeVal = (document.getElementById('shareCodeInput').value || '').trim().toUpperCase();
-        if (!nameVal) {
-          showToast('Vul eerst je Naam* in om te joinen.');
-          return;
+        if (!nameVal) return showToast('Vul eerst je Naam* in om te joinen.');
+        if (!/^GW-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(codeVal)) return showToast('Vul een geldige GW-deelcode in.');
+        try {
+          await gwJoinShare(nameVal, codeVal);
+        } catch (error) {
+          showToast(`Joinen mislukt: ${error.message}`);
         }
-        if (!codeVal) {
-          showToast('Vul een bestaande deelcode in om te joinen.');
-          return;
-        }
-        state.userName = nameVal;
-        state.shareCode = codeVal;
-        addLogEntry(`${nameVal} is verbonden met deelcode ${codeVal}.`);
-        saveState();
-        renderHeaderAndSync();
-        renderActivityLog();
-        showToast(`Verbonden met deelcode ${codeVal}!`);
       });
 
-      document.getElementById('createShareCodeBtn').addEventListener('click', () => {
+      document.getElementById('createShareCodeBtn').addEventListener('click', async () => {
         const nameVal = (document.getElementById('shareNameInput').value || state.userName || '').trim();
-        if (!nameVal) {
-          showToast('Vul eerst je Naam* in om een deelcode aan te maken.');
-          return;
+        if (!nameVal) return showToast('Vul eerst je Naam* in om een deelcode aan te maken.');
+        if (!GW_API_ENABLED) return showToast('De API is nog niet ingesteld. Zie backend README.');
+        try {
+          await gwCreateShare(nameVal);
+        } catch (error) {
+          showToast(`Aanmaken mislukt: ${error.message}`);
         }
-        const suffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-        const newCode = `KERST-${suffix}`;
-        state.userName = nameVal;
-        state.shareCode = newCode;
-        addLogEntry(`${nameVal} heeft nieuwe deelcode ${newCode} aangemaakt.`);
-        saveState();
-        renderHeaderAndSync();
-        renderActivityLog();
-        showToast(`Nieuwe deelcode aangemaakt: ${newCode}`);
       });
 
       document.getElementById('leaveShareCodeBtn').addEventListener('click', () => {
@@ -2022,11 +2253,22 @@
         openAnimatedModal('leaveShareConfirmModal', 'leaveShareConfirmCard');
       });
 
-      document.getElementById('confirmLeaveShareYesBtn').addEventListener('click', () => {
+      document.getElementById('confirmLeaveShareYesBtn').addEventListener('click', async () => {
         if (!pendingLeaveShareCode) return;
         pendingLeaveShareCode = false;
         const oldCode = state.shareCode;
         const nameVal = (state.userName || '').trim();
+        const token = gwGetShareToken(oldCode);
+        try {
+          if (GW_API_ENABLED && token) {
+            await gwApi(`/api/shares/${encodeURIComponent(oldCode)}/leave`, { method: 'POST', token });
+          }
+        } catch (error) {
+          showToast(`Verlaten mislukt: ${error.message}`);
+          pendingLeaveShareCode = true;
+          return;
+        }
+        gwRemoveShareToken(oldCode);
         state.shareCode = '';
         addLogEntry(`${nameVal || 'Deelnemer'} heeft deelcode ${oldCode} verlaten.`);
         saveState();
@@ -2163,6 +2405,20 @@
           renderActivityLog();
         });
       }
+
+      document.getElementById('exportJsonBtn')?.addEventListener('click', gwExportJson);
+      document.getElementById('importJsonBtn')?.addEventListener('click', () => {
+        document.getElementById('importJsonInput')?.click();
+      });
+      document.getElementById('importJsonInput')?.addEventListener('change', async (e) => {
+        try {
+          await gwImportJson(e.target.files?.[0]);
+        } catch (error) {
+          showToast(`Import mislukt: ${error.message}`);
+        } finally {
+          e.target.value = '';
+        }
+      });
     }
 
     function createGlassWaveEarthTexture() {
@@ -2433,177 +2689,9 @@
       }
     }
 
-    const EXPECTED_GITHUB_OWNER = 'royiess';
-    const EXPECTED_GITHUB_REPO = 'sickerstlijst';
-
-    function renderGlassWaveErrorLogoSvg() {
-      return `
-        <div class="glass-error-triangle w-24 h-24 sm:w-28 sm:h-28 mx-auto flex items-center justify-center" aria-hidden="true">
-          <svg class="w-full h-full" viewBox="0 0 120 108" fill="none">
-            <defs>
-              <linearGradient id="gwTriStrokeLocked" x1="20" y1="12" x2="100" y2="96" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#ffa952" />
-                <stop offset="50%" stop-color="#f97316" />
-                <stop offset="100%" stop-color="#b43b08" />
-              </linearGradient>
-              <linearGradient id="gwTriExclaimLocked" x1="60" y1="30" x2="60" y2="86" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#ff9933" />
-                <stop offset="100%" stop-color="#e04f06" />
-              </linearGradient>
-            </defs>
-            <path
-              d="M52.5 14.2c3.35-5.8 11.65-5.8 15 0l39.2 67.8c3.35 5.8-.84 13.05-7.5 13.05H20.8c-6.66 0-10.85-7.25-7.5-13.05l39.2-67.8Z"
-              stroke="url(#gwTriStrokeLocked)"
-              stroke-width="11.5"
-              stroke-linejoin="round"
-            />
-            <path
-              d="M54.2 13.8 C57.2 9.6, 62.8 9.6, 65.8 13.8"
-              stroke="#fff7ed"
-              stroke-opacity="0.72"
-              stroke-width="3.6"
-              stroke-linecap="round"
-            />
-            <rect x="54.3" y="34.5" width="11.4" height="32.5" rx="5.7" fill="url(#gwTriExclaimLocked)" />
-            <circle cx="60" cy="77.2" r="6.2" fill="url(#gwTriExclaimLocked)" />
-          </svg>
-        </div>
-      `;
-    }
-
-    function isAuthorizedGitHubHost() {
-      try {
-        const host = (window.location.hostname || '').toLowerCase();
-        const path = (window.location.pathname || '').toLowerCase();
-        const isExpectedHost = host === `${EXPECTED_GITHUB_OWNER}.github.io`;
-        const pathSegments = path.split('/').filter(Boolean);
-        const matchesRepoPath = pathSegments[0] === EXPECTED_GITHUB_REPO;
-        return isExpectedHost && matchesRepoPath;
-      } catch (_) {
-        return false;
-      }
-    }
-
-    function enforceClosedSourceLockdown() {
-      if (isAuthorizedGitHubHost()) return;
-
-      document.documentElement.classList.add('overflow-hidden');
-      document.body.classList.add('world-locked', 'gw-copy-guarded');
-
-      const lockId = 'gwClosedSourceLockdownOverlay';
-      const mountLockdown = () => {
-        if (isAuthorizedGitHubHost()) return;
-        let overlay = document.getElementById(lockId);
-        if (!overlay) {
-          overlay = document.createElement('div');
-          overlay.id = lockId;
-          overlay.setAttribute('role', 'alertdialog');
-          overlay.setAttribute('aria-modal', 'true');
-          overlay.className = 'fixed inset-0 z-[9999] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-4';
-          overlay.innerHTML = `
-            <div class="glass-panel rounded-3xl w-full max-w-lg p-6 sm:p-8 text-center space-y-4 border-amber-400/45">
-              ${renderGlassWaveErrorLogoSvg()}
-              <div class="inline-block px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-400/30">
-                Closed-Sourced Project • Vergrendeld
-              </div>
-              <h2 class="text-xl sm:text-2xl font-extrabold text-white">
-                Toegang geweigerd buiten Royiess / SICKerstlijst
-              </h2>
-              <p class="text-xs sm:text-sm text-slate-300/85 leading-relaxed">
-                Dit project is een <span class="font-semibold text-white">Closed-Sourced Project</span> en mag alleen worden uitgevoerd op <span class="font-semibold text-sky-300">royiess.github.io/SICKerstlijst/</span>. Kopiëren, selecteren en ontgrendelen op andere locaties zijn geblokkeerd.
-              </p>
-            </div>
-          `;
-          document.body.appendChild(overlay);
-        }
-
-        const sheet = document.getElementById('glassSheet');
-        if (sheet && !sheet.dataset.gwLocked) {
-          sheet.dataset.gwLocked = '1';
-          sheet.innerHTML = '';
-        }
-      };
-
-      mountLockdown();
-
-      try {
-        const observer = new MutationObserver(() => {
-          if (!isAuthorizedGitHubHost()) {
-            mountLockdown();
-          }
-        });
-        observer.observe(document.documentElement, {
-          childList: true,
-          subtree: true,
-          attributes: true,
-          attributeFilter: ['class', 'style', 'hidden']
-        });
-      } catch (_) {}
-
-      setInterval(() => {
-        if (!isAuthorizedGitHubHost()) {
-          mountLockdown();
-        }
-      }, 1200);
-    }
-
+    // Client-side source-code blokkades zijn verwijderd: ze beveiligen geen HTML/JS.
+    // De echte toegangscontrole, deelcodes en gedeelde data worden door de API afgedwongen.
     function applyCopyAndDomainGuard() {
-      document.body.classList.add('gw-copy-guarded');
-
-      document.addEventListener('selectstart', (e) => {
-        const target = e.target;
-        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
-        e.preventDefault();
-      });
-
-      document.addEventListener('dragstart', (e) => {
-        const target = e.target;
-        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
-        e.preventDefault();
-      });
-
-      document.addEventListener('copy', (e) => {
-        const target = e.target;
-        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
-        e.preventDefault();
-        showToast('Kopieren is uitgeschakeld op dit Closed-Sourced Project.');
-      });
-
-      document.addEventListener('cut', (e) => {
-        const target = e.target;
-        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
-        e.preventDefault();
-      });
-
-      document.addEventListener('contextmenu', (e) => {
-        const target = e.target;
-        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
-        e.preventDefault();
-      });
-
-      document.addEventListener('keydown', (e) => {
-        const target = e.target;
-        const isFormField = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
-        const key = (e.key || '').toLowerCase();
-        const isDevShortcut =
-          (e.ctrlKey || e.metaKey) &&
-          e.shiftKey &&
-          ['i', 'j', 'c', 'k'].includes(key);
-        const isBlockedCombo =
-          (e.ctrlKey || e.metaKey) &&
-          !isFormField &&
-          ['c', 'x', 'a', 's', 'u', 'p'].includes(key);
-
-        if (e.key === 'F12' || isDevShortcut || isBlockedCombo) {
-          e.preventDefault();
-        }
-      });
-
-      if (!isAuthorizedGitHubHost()) {
-        enforceClosedSourceLockdown();
-        return false;
-      }
-
       return true;
     }
 
@@ -2620,6 +2708,16 @@
       setWorldHiddenMode(state.worldHidden);
       switchTab('lijst');
       initThreeGlobeAndSnow();
+
+      if (GW_API_ENABLED && hasActiveShare() && gwGetShareToken()) {
+        gwPullSharedState().catch((error) => {
+          console.error('Kon gedeelde lijst niet laden:', error);
+          showToast(`Gedeelde lijst laden mislukt: ${error.message}`);
+        });
+      }
+      if (GW_API_ENABLED) {
+        setInterval(gwPollSharedState, 6000);
+      }
     });
   </script>
 </body>
