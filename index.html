@@ -3,59 +3,566 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Roy's Kerstlijst 2026 — SIC Corp</title>
+  <title>Kerstlijst &amp; Budget 2026 — Glass Wave</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
-    :root { color-scheme: dark; }
-    html, body { margin: 0; padding: 0; min-height: 100vh; font-family: 'Inter', sans-serif; background-color: #050a14; color: #f8fafc; overflow-x: hidden; }
-    .glass-panel { position: relative; background: radial-gradient(120% 90% at 15% 0%, rgba(125, 211, 252, 0.16), transparent 55%), linear-gradient(155deg, rgba(16, 27, 48, 0.58), rgba(7, 13, 27, 0.78)); backdrop-filter: blur(26px) saturate(165%); border: 1px solid rgba(186, 230, 253, 0.22); box-shadow: 0 24px 56px rgba(0, 0, 0, 0.58); }
-    .glass-card { position: relative; background: linear-gradient(135deg, rgba(125, 211, 252, 0.11), transparent 48%), linear-gradient(150deg, rgba(24, 37, 61, 0.56), rgba(11, 19, 36, 0.74)); backdrop-filter: blur(20px); border: 1px solid rgba(186, 230, 253, 0.16); box-shadow: 0 10px 26px rgba(0, 0, 0, 0.36); }
-    .glass-btn { position: relative; background: linear-gradient(150deg, rgba(186, 230, 253, 0.2), rgba(56, 189, 248, 0.08) 48%, rgba(15, 23, 42, 0.35)); backdrop-filter: blur(18px); border: 1px solid rgba(186, 230, 253, 0.24); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 8px 20px rgba(0, 0, 0, 0.32); transition: transform 0.18s; cursor: pointer; }
-    .glass-btn:active { transform: scale(0.95); }
-    .gw-modal-backdrop { opacity: 0; visibility: hidden; transition: opacity 0.24s; }
-    .gw-modal-backdrop.is-open { opacity: 1; visibility: visible; }
-    .gw-modal-card { transform: translateY(18px) scale(0.95); opacity: 0; transition: transform 0.34s; }
-    .gw-modal-backdrop.is-open .gw-modal-card { transform: translateY(0) scale(1); opacity: 1; }
-    .dock-pill { transition: transform 0.36s, width 0.36s; background: linear-gradient(145deg, rgba(56, 189, 248, 0.34), rgba(14, 165, 233, 0.16)); border: 1px solid rgba(186, 230, 253, 0.52); }
+    :root {
+      color-scheme: dark;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      font-family: 'Inter', sans-serif;
+      background-color: #050a14;
+      color: #f8fafc;
+      overflow-x: hidden;
+    }
+
+    body.world-locked {
+      overflow: hidden !important;
+    }
+
+    /* Beperkte selectie/kopieerblokkade (client-side only) */
+    body.gw-copy-guarded {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+
+    body.gw-copy-guarded input,
+    body.gw-copy-guarded textarea {
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
+      user-select: text;
+    }
+
+    /* Achtergrond 3D canvas */
+    #globeCanvasWrap {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 50% 24%, rgba(14, 165, 233, 0.14), transparent 58%),
+        radial-gradient(circle at 20% 80%, rgba(16, 185, 129, 0.08), transparent 50%),
+        linear-gradient(180deg, #050b18 0%, #040812 100%);
+    }
+
+    #globeCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    /* Glass Wave oppervlakken met golvende lichtrefractie */
+    .glass-panel {
+      position: relative;
+      background:
+        radial-gradient(120% 90% at 15% 0%, rgba(125, 211, 252, 0.16), transparent 55%),
+        radial-gradient(95% 80% at 88% 12%, rgba(251, 146, 60, 0.08), transparent 60%),
+        linear-gradient(155deg, rgba(16, 27, 48, 0.58), rgba(7, 13, 27, 0.78));
+      backdrop-filter: blur(26px) saturate(165%);
+      border: 1px solid rgba(186, 230, 253, 0.22);
+      box-shadow:
+        0 24px 56px rgba(0, 0, 0, 0.58),
+        0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+        inset 0 1.5px 0 rgba(255, 255, 255, 0.26);
+    }
+
+    .glass-panel::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      background: linear-gradient(
+        115deg,
+        transparent 18%,
+        rgba(186, 230, 253, 0.09) 34%,
+        rgba(255, 255, 255, 0.15) 42%,
+        rgba(56, 189, 248, 0.06) 52%,
+        transparent 68%
+      );
+      mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.85), transparent 85%);
+    }
+
+    .glass-card {
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(135deg, rgba(125, 211, 252, 0.11), transparent 48%),
+        linear-gradient(150deg, rgba(24, 37, 61, 0.56), rgba(11, 19, 36, 0.74));
+      backdrop-filter: blur(20px) saturate(150%);
+      border: 1px solid rgba(186, 230, 253, 0.16);
+      box-shadow:
+        0 10px 26px rgba(0, 0, 0, 0.36),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+      transition: transform 0.22s cubic-bezier(0.22, 1.15, 0.36, 1),
+                  border-color 0.22s ease,
+                  background 0.22s ease,
+                  box-shadow 0.22s ease;
+    }
+
+    .glass-card::after {
+      content: '';
+      position: absolute;
+      left: -20%;
+      right: -20%;
+      bottom: -18px;
+      height: 26px;
+      pointer-events: none;
+      background: radial-gradient(65% 100% at 50% 0%, rgba(125, 211, 252, 0.14), transparent 80%);
+      transform: skewY(-2.5deg);
+    }
+
+    .glass-card:hover {
+      transform: translateY(-1px);
+      border-color: rgba(125, 211, 252, 0.38);
+      box-shadow:
+        0 14px 30px rgba(0, 0, 0, 0.44),
+        0 0 22px rgba(56, 189, 248, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.26);
+    }
+
+    .glass-btn {
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(150deg, rgba(186, 230, 253, 0.2), rgba(56, 189, 248, 0.08) 48%, rgba(15, 23, 42, 0.35));
+      backdrop-filter: blur(18px) saturate(150%);
+      border: 1px solid rgba(186, 230, 253, 0.24);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 8px 20px rgba(0, 0, 0, 0.32);
+      transition: transform 0.18s cubic-bezier(0.22, 1.2, 0.36, 1),
+                  background 0.2s ease,
+                  border-color 0.2s ease,
+                  box-shadow 0.2s ease;
+    }
+
+    .glass-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.22) 50%, transparent 80%);
+      transform: translateX(-110%);
+      transition: transform 0.45s ease;
+    }
+
+    .glass-btn:hover {
+      background: linear-gradient(150deg, rgba(186, 230, 253, 0.28), rgba(56, 189, 248, 0.14) 50%, rgba(15, 23, 42, 0.32));
+      border-color: rgba(125, 211, 252, 0.48);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 10px 24px rgba(14, 165, 233, 0.2);
+    }
+
+    .glass-btn:hover::before {
+      transform: translateX(110%);
+    }
+
+    .glass-btn:active {
+      transform: scale(0.95);
+    }
+
+    .glass-btn-active {
+      background: linear-gradient(150deg, rgba(56, 189, 248, 0.42), rgba(14, 165, 233, 0.22)) !important;
+      border-color: rgba(125, 211, 252, 0.75) !important;
+      box-shadow: 0 0 24px rgba(56, 189, 248, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.45) !important;
+    }
+
+    /* Onderste glijdende pil-dock met Glass Wave gloed */
+    .dock-pill {
+      transition: transform 0.36s cubic-bezier(0.22, 1.18, 0.36, 1), width 0.36s cubic-bezier(0.22, 1.18, 0.36, 1);
+      background:
+        radial-gradient(120% 100% at 50% 0%, rgba(255, 255, 255, 0.32), transparent 65%),
+        linear-gradient(145deg, rgba(56, 189, 248, 0.34), rgba(14, 165, 233, 0.16));
+      border: 1px solid rgba(186, 230, 253, 0.52);
+      box-shadow: 0 4px 20px rgba(14, 165, 233, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.42);
+    }
+
+    /* Glass Wave Sheet animaties */
+    #glassSheet {
+      transition: transform 0.48s cubic-bezier(0.22, 1.15, 0.36, 1), opacity 0.34s ease, visibility 0.34s ease;
+    }
+
+    #glassSheet.sheet-hidden-down {
+      transform: translateY(115vh) scale(0.97);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    /* Glass Wave Error Triangle bounce */
+    @keyframes glassTriangleBounce {
+      0%, 100% {
+        transform: translateY(0) scale(1);
+      }
+      45% {
+        transform: translateY(-5px) scale(1.03);
+      }
+    }
+
+    .glass-error-triangle {
+      animation: glassTriangleBounce 2.6s ease-in-out infinite;
+      filter: drop-shadow(0 6px 14px rgba(249, 115, 22, 0.35));
+    }
+
+    /* Glass Wave Modal open/sluit animatie */
+    .gw-modal-backdrop {
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.24s ease, visibility 0.24s ease;
+    }
+
+    .gw-modal-backdrop.is-open {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .gw-modal-card {
+      transform: translateY(18px) scale(0.95);
+      opacity: 0;
+      transition: transform 0.34s cubic-bezier(0.22, 1.2, 0.36, 1), opacity 0.24s ease;
+    }
+
+    .gw-modal-backdrop.is-open .gw-modal-card {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+
+    /* Custom range slider */
+    input[type="range"].gw-slider {
+      appearance: none;
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.22);
+      outline: none;
+    }
+
+    input[type="range"].gw-slider::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #38bdf8;
+      border: 2px solid #e0f2fe;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.65);
+      cursor: pointer;
+    }
+
+    @keyframes floatingGreenDot {
+      0%, 100% {
+        transform: translateY(0px);
+      }
+      50% {
+        transform: translateY(-2.5px);
+      }
+    }
+
+    .floating-green-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 9999px;
+      background-color: #34d399;
+      box-shadow: 0 0 8px rgba(52, 211, 153, 0.85);
+      animation: floatingGreenDot 2.2s ease-in-out infinite;
+    }
+
+    /* Gerichte mobiele optimalisaties (< 640px) zonder desktop te raken */
+    @media (max-width: 639.98px) {
+      .mobile-main-wrap {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+        padding-top: 0.75rem !important;
+        padding-bottom: 7.5rem !important;
+      }
+
+      .mobile-header-row {
+        flex-wrap: nowrap;
+        gap: 0.4rem !important;
+      }
+
+      .mobile-brand-card {
+        display: none;
+      }
+
+      #openTrashBtn,
+      #openAddModalBtn {
+        display: none !important;
+      }
+
+      .mobile-top-brand {
+        display: flex !important;
+      }
+
+      .mobile-sheet {
+        margin-top: 0.75rem !important;
+        padding: 1rem !important;
+        border-radius: 24px !important;
+      }
+
+      .mobile-section-title {
+        font-size: 1.15rem !important;
+        line-height: 1.35rem !important;
+      }
+
+      .mobile-count-pill {
+        white-space: nowrap !important;
+        flex-shrink: 0 !important;
+        padding: 0.375rem 0.75rem !important;
+      }
+
+      .mobile-name-box {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.375rem !important;
+        padding: 0.75rem 0.875rem !important;
+      }
+
+      .mobile-name-top {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        width: 100%;
+      }
+
+      .mobile-share-actions {
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.35rem !important;
+        width: 100% !important;
+      }
+
+      .mobile-share-actions button {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+        padding-top: 0.6rem !important;
+        padding-bottom: 0.6rem !important;
+        font-size: 0.72rem !important;
+        white-space: nowrap !important;
+        flex: 1 1 auto !important;
+      }
+
+      #createShareCodeBtn {
+        flex: 1.35 1 auto !important;
+      }
+
+      .mobile-cat-row {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        gap: 0.4rem !important;
+        padding-bottom: 0.35rem !important;
+      }
+
+      .mobile-cat-btn {
+        flex-shrink: 0 !important;
+        white-space: nowrap !important;
+        padding: 0.35rem 0.7rem !important;
+        font-size: 0.7rem !important;
+      }
+
+      .mobile-dock-wrap {
+        bottom: 1.25rem !important;
+      }
+
+      .mobile-world-bar {
+        bottom: 4.5rem !important;
+        width: auto !important;
+        max-width: calc(100% - 1.5rem) !important;
+        justify-content: center !important;
+        gap: 0.45rem !important;
+        padding: 0.45rem 0.65rem !important;
+      }
+    }
   </style>
 </head>
 <body class="selection:bg-sky-500/30 selection:text-sky-100">
-  <div id="globeCanvasWrap" class="fixed inset-0 z-0 pointer-events-none" style="background: radial-gradient(circle at 50% 24%, rgba(14, 165, 233, 0.14), transparent 58%), linear-gradient(180deg, #050b18 0%, #040812 100%);"><canvas id="globeCanvas" class="block w-full h-full touch-none"></canvas></div>
-  
+  <!-- 3D Wereld & Sneeuw Canvas -->
+  <div id="globeCanvasWrap">
+    <canvas id="globeCanvas"></canvas>
+  </div>
+
+  <!-- Wereld-modus statusbalk (zichtbaar wanneer lijst omlaag is geschoven) -->
+  <div id="worldModeBar" class="mobile-world-bar hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-4 py-2 rounded-full glass-panel">
+    <span class="text-xs sm:text-sm font-medium text-sky-100 truncate">3D Kerstwereld</span>
+    <button
+      id="resetWorldCamBtn"
+      type="button"
+      class="px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/25 hover:bg-sky-500/35 border border-sky-300/40 text-sky-100 transition shrink-0"
+    >
+      Centreer
+    </button>
+    <button
+      id="restoreSheetFromBarBtn"
+      type="button"
+      class="px-3.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/25 hover:bg-emerald-500/35 border border-emerald-300/40 text-emerald-100 transition shrink-0"
+    >
+      Toon lijst
+    </button>
+  </div>
+
+  <!-- Toast melding -->
+  <div id="toastBanner" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 translate-y-2 transition-all duration-300">
+    <div id="toastText" class="px-4 py-2 rounded-full glass-panel text-xs sm:text-sm font-semibold text-sky-100"></div>
+  </div>
+
+  <!-- Hoofdinhoud -->
   <div class="mobile-main-wrap relative z-10 min-h-screen flex flex-col justify-between px-3 sm:px-6 pt-4 pb-28 max-w-6xl mx-auto">
-    <header class="flex items-center justify-between gap-2 sm:gap-4">
+    <!-- Topbalk -->
+    <header class="mobile-header-row flex items-center justify-between gap-2 sm:gap-4">
       <div class="flex items-center gap-2 sm:gap-3 min-w-0">
-        <div id="userBadge" class="glass-btn px-3.5 py-2 rounded-full text-xs sm:text-sm font-extrabold tracking-wide text-sky-200 shrink-0">GUEST</div>
-        <div class="glass-card px-3.5 py-1.5 rounded-2xl min-w-0">
+        <div id="userBadge" class="glass-btn px-3.5 py-2 rounded-full text-xs sm:text-sm font-extrabold tracking-wide text-sky-200 shrink-0">
+          GUEST
+        </div>
+        <div class="mobile-top-brand hidden sm:hidden flex-col min-w-0">
+          <div class="text-xs font-bold text-white leading-tight truncate">SIC Corp</div>
+          <div class="flex items-center gap-1.5 text-[11px] text-slate-300/85 leading-tight truncate">
+            <span>Kerstmis</span>
+            <span class="floating-green-dot shrink-0" aria-hidden="true"></span>
+            <span>2026</span>
+          </div>
+          <div class="text-[10px] font-semibold text-sky-300/90 leading-tight truncate">Glass Wave</div>
+        </div>
+        <div class="mobile-brand-card glass-card px-3.5 py-1.5 rounded-2xl min-w-0">
           <div class="text-xs sm:text-sm font-bold text-white truncate">SIC Corp</div>
-          <div id="headerSubStatus" class="text-[11px] text-slate-300/85 truncate">Roy's Kerstlijstje • 2026 • Lokaal</div>
+          <div id="headerSubStatus" class="text-[11px] text-slate-300/85 truncate">Kerstlijstje • 2026 • Lokaal</div>
         </div>
       </div>
+
       <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        <button id="openAddModalBtn" type="button" title="Nieuw item" class="glass-btn w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-sky-200 font-bold text-lg sm:text-xl shrink-0">+</button>
+        <!-- Prullenbak verwijderde items -->
+        <button
+          id="openTrashBtn"
+          type="button"
+          title="Prullenbak (verwijderde items)"
+          class="relative glass-btn w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-white shrink-0"
+        >
+          <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4h8v2m-9 0l1 14h8l1-14" />
+          </svg>
+          <span
+            id="trashCountBadge"
+            class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-slate-950 text-[10px] font-extrabold flex items-center justify-center shadow"
+          >
+            0
+          </span>
+        </button>
+
+        <!-- Wereld Centraal knop rechtsboven -->
+        <button
+          id="topWorldCenterBtn"
+          type="button"
+          title="Wereld Centraal (verberg/toon lijst)"
+          class="glass-btn w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-sky-200 shrink-0"
+        >
+          <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M3 12h18M12 3a14.5 14.5 0 0 1 0 18M12 3a14.5 14.5 0 0 0 0 18" />
+          </svg>
+        </button>
+
+        <!-- = Wereld-schakelaar knop -->
+        <button
+          id="toggleWorldModeBtn"
+          type="button"
+          title="Wissel tussen lijst en 3D wereld"
+          class="glass-btn w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-white font-bold text-base sm:text-lg shrink-0"
+        >
+          =
+        </button>
+
+        <!-- + Nieuw item knop -->
+        <button
+          id="openAddModalBtn"
+          type="button"
+          title="Nieuw item toevoegen"
+          class="glass-btn w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-sky-200 font-bold text-lg sm:text-xl shrink-0"
+        >
+          +
+        </button>
       </div>
     </header>
 
-    <main id="glassSheet" class="glass-panel rounded-[28px] sm:rounded-[34px] p-4 sm:p-7 mt-5 w-full max-w-5xl mx-auto">
+    <!-- Glass Wave Sheet -->
+    <main id="glassSheet" class="mobile-sheet glass-panel rounded-[28px] sm:rounded-[34px] p-4 sm:p-7 mt-5 w-full max-w-5xl mx-auto">
+      <!-- Sleep-slider hendel bovenaan het sheet -->
+      <div class="flex flex-col items-center mb-4">
+        <div
+          id="sheetDragHandle"
+          role="slider"
+          tabindex="0"
+          aria-label="Sleep omlaag om de wereld te bekijken"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+          class="w-16 h-2 rounded-full bg-slate-300/45 hover:bg-sky-300/80 cursor-ns-resize transition"
+        ></div>
+        <span class="mt-1.5 text-[11px] text-slate-300/75 text-center">Sleep omlaag of klik om de wereld te bekijken</span>
+      </div>
+
+      <!-- TAB 1: LIJST -->
       <section id="tab-lijst" class="tab-section space-y-5">
         <div class="flex items-center justify-between gap-2">
           <div class="min-w-0 flex-1">
-            <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Kerstlijst &amp; Budget</h1>
-            <p class="text-xs sm:text-sm text-slate-300/80">Beheer je verlanglijst</p>
+            <h1 class="mobile-section-title text-xl sm:text-2xl font-extrabold tracking-tight text-white">Kerstlijst &amp; Budget</h1>
+            <p class="text-xs sm:text-sm text-slate-300/80">Beheer je verlanglijst, budget en gedeelde items</p>
           </div>
           <div class="flex items-center gap-1.5 shrink-0">
-            <span id="itemCountPill" class="px-3.5 py-1.5 rounded-full text-xs font-bold glass-card text-sky-200 shrink-0">0 items</span>
+            <!-- Mobiele prullenbak & + knop direct naast Kerstlijst & Budget -->
+            <button
+              id="mobileInlineTrashBtn"
+              type="button"
+              title="Prullenbak (verwijderde items)"
+              class="sm:hidden relative glass-btn w-8 h-8 rounded-full flex items-center justify-center text-white shrink-0"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4h8v2m-9 0l1 14h8l1-14" />
+              </svg>
+              <span
+                id="mobileTrashCountBadge"
+                class="hidden absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-slate-950 text-[9px] font-extrabold flex items-center justify-center shadow"
+              >
+                0
+              </span>
+            </button>
+            <button
+              id="mobileInlineAddBtn"
+              type="button"
+              title="Nieuw item toevoegen"
+              class="sm:hidden glass-btn w-8 h-8 rounded-full flex items-center justify-center text-sky-200 font-bold text-base shrink-0"
+            >
+              +
+            </button>
+            <span id="itemCountPill" class="mobile-count-pill px-3.5 py-1.5 rounded-full text-xs font-bold glass-card text-sky-200 shrink-0">
+              0 items
+            </span>
           </div>
         </div>
-        <div class="glass-card rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div class="flex items-center gap-2.5 flex-1 min-w-0">
-            <label for="quickNameInput" class="text-[11px] font-extrabold uppercase tracking-wider text-sky-300 shrink-0">Jouw naam</label>
-            <input id="quickNameInput" type="text" placeholder="Vul je naam in" class="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-400/80 focus:outline-none min-w-0" />
+
+        <!-- Naam-invoer balk -->
+        <div class="mobile-name-box glass-card rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="mobile-name-top flex items-center gap-2.5 flex-1 min-w-0">
+            <label for="quickNameInput" class="text-[11px] font-extrabold uppercase tracking-wider text-sky-300 shrink-0">
+              Jouw naam
+            </label>
+            <input
+              id="quickNameInput"
+              type="text"
+              placeholder="Vul je naam in (anders GUEST)"
+              class="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-400/80 focus:outline-none min-w-0"
+            />
           </div>
-          <span id="syncModeTag" class="text-[11px] sm:text-xs font-semibold text-slate-300/80 shrink-0">Lokaal</span>
+          <span id="syncModeTag" class="text-[11px] sm:text-xs font-semibold text-slate-300/80 shrink-0">Alleen lokaal</span>
         </div>
+
+        <!-- Budgetoverzicht -->
         <div class="glass-card rounded-2xl p-4 sm:p-5 space-y-4">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -70,338 +577,945 @@
               <div id="budgetPercentLabel" class="text-xs text-slate-300/80">0% van budget</div>
             </div>
           </div>
+
+          <!-- Voortgangsbalk -->
           <div class="w-full h-3 rounded-full bg-slate-800/80 overflow-hidden border border-white/10">
-            <div id="budgetProgressBar" class="h-full rounded-full bg-gradient-to-r from-sky-400 via-teal-300 to-emerald-400 transition-all duration-300" style="width: 0%"></div>
+            <div
+              id="budgetProgressBar"
+              class="h-full rounded-full bg-gradient-to-r from-sky-400 via-teal-300 to-emerald-400 transition-all duration-300"
+              style="width: 0%"
+            ></div>
+          </div>
+
+          <!-- Snelle budgetpresets + schuifregelaar -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <button type="button" data-budget-preset="300" class="budget-preset-btn glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-slate-200">€300</button>
+              <button type="button" data-budget-preset="350" class="budget-preset-btn glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-slate-200">€350</button>
+              <button type="button" data-budget-preset="400" class="budget-preset-btn glass-btn px-3 py-1.5 rounded-xl text-xs font-bold text-slate-200">€400</button>
+            </div>
+            <div class="flex items-center gap-3 w-full sm:w-56">
+              <input
+                id="budgetRangeSlider"
+                type="range"
+                min="100"
+                max="1200"
+                step="10"
+                value="350"
+                class="gw-slider w-full"
+              />
+            </div>
           </div>
         </div>
-        <div id="wishlistItemsContainer" class="space-y-3"></div>
+
+        <!-- Zoeken & sorteren -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input
+            id="searchItemInput"
+            type="text"
+            placeholder="Zoek op naam of notitie..."
+            class="flex-1 glass-card rounded-2xl px-4 py-2.5 text-sm text-white placeholder-slate-400/75 focus:outline-none focus:border-sky-400/60"
+          />
+          <select
+            id="sortItemsSelect"
+            class="glass-card rounded-2xl px-4 py-2.5 text-sm font-semibold text-white bg-slate-900/80 focus:outline-none focus:border-sky-400/60"
+          >
+            <option value="default">Standaard volgorde</option>
+            <option value="price-desc">Prijs: hoog naar laag</option>
+            <option value="price-asc">Prijs: laag naar hoog</option>
+            <option value="name-asc">Naam: A - Z</option>
+          </select>
+        </div>
+
+        <!-- Categoriefilters -->
+        <div id="categoryFilterRow" class="mobile-cat-row flex items-center gap-2 overflow-x-auto pb-1">
+          <!-- Dynamisch gevuld -->
+        </div>
+
+        <!-- Items lijst -->
+        <div id="wishlistItemsContainer" class="space-y-3">
+          <!-- Dynamisch gevuld -->
+        </div>
       </section>
 
+      <!-- TAB 2: DEELCODE -->
       <section id="tab-deelcode" class="tab-section hidden space-y-5">
         <div class="flex items-center justify-between gap-2.5">
           <div class="min-w-0">
-            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Deelcode &amp; Delen</h2>
-            <p class="text-xs sm:text-sm text-slate-300/80">Maak een code aan of join met een bestaande code</p>
+            <h2 class="mobile-section-title text-xl sm:text-2xl font-extrabold tracking-tight text-white">Deelcode &amp; Delen</h2>
+            <p class="text-xs sm:text-sm text-slate-300/80">Maak een deelcode aan, join met code of verlaat de deelcode</p>
           </div>
+          <span id="shareItemCountPill" class="mobile-count-pill px-3.5 py-1.5 rounded-full text-xs font-bold glass-card text-sky-200 shrink-0">
+            0 items
+          </span>
         </div>
+
         <div class="glass-card rounded-2xl p-4 sm:p-6 space-y-4">
-          <div class="space-y-1.5">
-            <label for="shareNameInput" class="block text-xs font-extrabold uppercase tracking-wider text-amber-300">Naam* (verplicht)</label>
-            <input id="shareNameInput" type="text" placeholder="Jouw naam" class="w-full glass-card rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none" />
+          <div>
+            <h3 class="text-base sm:text-lg font-bold text-white">Gedeelde Kerstlijst (Deelcode)</h3>
+            <p class="text-xs sm:text-sm text-slate-300/80">
+              Vul eerst je <span class="text-amber-300 font-semibold">Naam*</span> in om een deelcode aan te maken of met een bestaande code te joinen.
+            </p>
           </div>
+
+          <div class="space-y-1.5">
+            <label for="shareNameInput" class="block text-xs font-extrabold uppercase tracking-wider text-amber-300">
+              Naam* (verplicht)
+            </label>
+            <input
+              id="shareNameInput"
+              type="text"
+              placeholder="Bijv. Royston"
+              class="w-full glass-card rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-400/70 focus:outline-none focus:border-sky-400/60"
+            />
+          </div>
+
           <div class="flex flex-col sm:flex-row gap-2.5">
-            <input id="shareCodeInput" type="text" placeholder="BIJV. ROY-ABCD-EFGH" class="flex-1 glass-card rounded-xl px-4 py-2.5 text-sm uppercase text-white focus:outline-none" />
-            <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
-              <button id="joinShareCodeBtn" type="button" class="glass-btn px-4 py-2.5 rounded-xl text-sm font-bold text-sky-200 shrink-0">Joinen</button>
-              <button id="createShareCodeBtn" type="button" class="glass-btn px-4 py-2.5 rounded-xl text-sm font-bold text-emerald-300 shrink-0">Nieuwe code</button>
-              <button id="leaveShareCodeBtn" type="button" class="glass-btn px-4 py-2.5 rounded-xl text-sm font-bold text-amber-300 shrink-0">Leave</button>
+            <input
+              id="shareCodeInput"
+              type="text"
+              placeholder="BIJV. GW-ABCD-EFGH-IJKL"
+              class="flex-1 glass-card rounded-xl px-4 py-2.5 text-sm uppercase tracking-wider text-white placeholder-slate-400/70 focus:outline-none focus:border-sky-400/60"
+            />
+            <div class="mobile-share-actions flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
+              <button
+                id="joinShareCodeBtn"
+                type="button"
+                class="glass-btn px-4 py-2.5 rounded-xl text-sm font-bold text-sky-200 shrink-0"
+              >
+                Joinen
+              </button>
+              <button
+                id="createShareCodeBtn"
+                type="button"
+                class="glass-btn px-4 py-2.5 rounded-xl text-sm font-bold text-emerald-300 border-emerald-400/35 shrink-0"
+              >
+                Nieuwe code
+              </button>
+              <button
+                id="leaveShareCodeBtn"
+                type="button"
+                class="glass-btn px-4 py-2.5 rounded-xl text-sm font-bold text-amber-300 shrink-0"
+              >
+                Leave
+              </button>
             </div>
           </div>
+
           <div class="glass-card rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
-            <div><span class="text-slate-300/80">Actieve code: </span><span id="activeShareCodeText" class="font-bold text-sky-300">Geen</span></div>
-            <div><span class="text-slate-300/80">Deelnemer: </span><span id="activeParticipantText" class="font-bold text-amber-300">Niet ingesteld</span></div>
+            <div>
+              <span class="text-slate-300/80">Actieve deelcode: </span>
+              <span id="activeShareCodeText" class="font-bold text-sky-300">Geen (alleen lokaal)</span>
+            </div>
+            <div>
+              <span class="text-slate-300/80">Deelnemer: </span>
+              <span id="activeParticipantText" class="font-bold text-amber-300">Niet ingesteld</span>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button id="exportJsonBtn" type="button" class="glass-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-sky-200">Export .json</button>
+            <button id="importJsonBtn" type="button" class="glass-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-emerald-300">Import .json</button>
+            <input id="importJsonInput" type="file" accept=".json,application/json" class="hidden" />
+          </div>
+          <p class="text-[11px] text-slate-400/80">Back-up of herstel van je lijst. Deelcodes synchroniseren online via de SIC Corp API.</p>
+        </div>
+
+        <!-- Waarschuwingskaart met Glass Wave Error Triangle -->
+        <div class="glass-card rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-4 border-amber-400/30">
+          <div class="glass-error-triangle w-16 h-16 sm:w-20 sm:h-20 shrink-0 flex items-center justify-center" aria-hidden="true">
+            <svg class="w-full h-full" viewBox="0 0 120 108" fill="none">
+              <defs>
+                <linearGradient id="gwTriStrokeDeel" x1="20" y1="12" x2="100" y2="96" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#ffa952" />
+                  <stop offset="50%" stop-color="#f97316" />
+                  <stop offset="100%" stop-color="#b43b08" />
+                </linearGradient>
+                <linearGradient id="gwTriExclaimDeel" x1="60" y1="30" x2="60" y2="86" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#ff9933" />
+                  <stop offset="100%" stop-color="#e04f06" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M52.5 14.2c3.35-5.8 11.65-5.8 15 0l39.2 67.8c3.35 5.8-.84 13.05-7.5 13.05H20.8c-6.66 0-10.85-7.25-7.5-13.05l39.2-67.8Z"
+                stroke="url(#gwTriStrokeDeel)"
+                stroke-width="11.5"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M54.2 13.8 C57.2 9.6, 62.8 9.6, 65.8 13.8"
+                stroke="#fff7ed"
+                stroke-opacity="0.72"
+                stroke-width="3.6"
+                stroke-linecap="round"
+              />
+              <rect x="54.3" y="34.5" width="11.4" height="32.5" rx="5.7" fill="url(#gwTriExclaimDeel)" />
+              <circle cx="60" cy="77.2" r="6.2" fill="url(#gwTriExclaimDeel)" />
+            </svg>
+          </div>
+          <div class="space-y-1 text-center sm:text-left">
+            <div class="text-sm sm:text-base font-extrabold text-amber-300">
+              Glass Wave Waarschuwing — Deelcode &amp; Logs
+            </div>
+            <p class="text-xs sm:text-sm text-slate-300/85 leading-relaxed">
+              Zonder een ingevulde <span class="font-semibold text-white">Naam*</span> en een actieve <span class="font-semibold text-white">Deelcode</span> blijft je lijst alleen lokaal en zijn de gedeelde logregels vergrendeld. Met <span class="font-semibold text-amber-300">Leave</span> kun je een actieve deelcode altijd verlaten.
+            </p>
           </div>
         </div>
       </section>
 
+      <!-- TAB 3: LOG -->
       <section id="tab-log" class="tab-section hidden space-y-5">
         <div class="flex items-center justify-between gap-2.5">
           <div class="min-w-0">
-            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Activiteitenlogboek</h2>
+            <h2 class="mobile-section-title text-xl sm:text-2xl font-extrabold tracking-tight text-white">Activiteitenlogboek</h2>
+            <p class="text-xs sm:text-sm text-slate-300/80">Overzicht van toegevoegde, afgevinkte, verwijderde en herstelde items</p>
           </div>
+          <span id="logItemCountPill" class="mobile-count-pill px-3.5 py-1.5 rounded-full text-xs font-bold glass-card text-sky-200 shrink-0">
+            0 items
+          </span>
         </div>
+
         <div class="glass-card rounded-2xl p-4 sm:p-6 space-y-4">
-          <div class="glass-card rounded-xl px-4 py-3 text-xs sm:text-sm flex flex-wrap justify-between gap-2">
-            <div><span class="text-slate-400">CODE:</span> <span id="logCodeText" class="font-bold text-sky-300">GEEN</span></div>
-            <div><span class="text-slate-400">GROEP:</span> <span class="font-bold text-emerald-300">ACTIEF</span></div>
+          <div class="space-y-3">
+            <div>
+              <h3 class="text-base sm:text-lg font-bold text-white">Activiteitenlogboek</h3>
+              <p id="logSubtitleText" class="text-xs sm:text-sm text-slate-300/80">Toegang &amp; voorwaarden voor logweergave</p>
+            </div>
+            <input
+              id="searchLogInput"
+              type="text"
+              placeholder="Zoek in activiteitenlog..."
+              class="w-full glass-card rounded-xl px-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-400/75 focus:outline-none focus:border-sky-400/60"
+            />
           </div>
-          <div class="mt-4">
-            <h3 class="text-sm font-bold text-white mb-2">LEDEN</h3>
-            <div id="logMembersList" class="space-y-1 text-sm text-slate-300"></div>
+
+          <!-- Blokkade / info kaart met grote Glass Wave Error Triangle -->
+          <div id="logGateCard" class="glass-card rounded-2xl p-4 sm:p-6 flex flex-col sm:flex-row items-center gap-5 border-amber-400/35">
+            <div class="glass-error-triangle w-24 h-24 sm:w-28 sm:h-28 shrink-0 flex items-center justify-center" aria-hidden="true">
+              <svg class="w-full h-full" viewBox="0 0 120 108" fill="none">
+                <defs>
+                  <linearGradient id="gwTriStrokeLog" x1="20" y1="12" x2="100" y2="96" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#ffa952" />
+                    <stop offset="50%" stop-color="#f97316" />
+                    <stop offset="100%" stop-color="#b43b08" />
+                  </linearGradient>
+                  <linearGradient id="gwTriExclaimLog" x1="60" y1="30" x2="60" y2="86" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#ff9933" />
+                    <stop offset="100%" stop-color="#e04f06" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M52.5 14.2c3.35-5.8 11.65-5.8 15 0l39.2 67.8c3.35 5.8-.84 13.05-7.5 13.05H20.8c-6.66 0-10.85-7.25-7.5-13.05l39.2-67.8Z"
+                  stroke="url(#gwTriStrokeLog)"
+                  stroke-width="11.5"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M54.2 13.8 C57.2 9.6, 62.8 9.6, 65.8 13.8"
+                  stroke="#fff7ed"
+                  stroke-opacity="0.72"
+                  stroke-width="3.6"
+                  stroke-linecap="round"
+                />
+                <rect x="54.3" y="34.5" width="11.4" height="32.5" rx="5.7" fill="url(#gwTriExclaimLog)" />
+                <circle cx="60" cy="77.2" r="6.2" fill="url(#gwTriExclaimLog)" />
+              </svg>
+            </div>
+            <div class="space-y-1.5 text-center sm:text-left">
+              <div class="text-sm sm:text-base font-extrabold text-amber-300">
+                Logs openen vereist een Naam* en een actieve Deelcode
+              </div>
+              <p class="text-xs sm:text-sm text-slate-300/85 leading-relaxed">
+                Ga naar het tabblad <span class="font-semibold text-white">Deelcode</span>, vul je <span class="font-semibold text-amber-300">Naam*</span> in en maak een nieuwe deelcode aan of join met een bestaande code om de activiteitenlogs te openen.
+              </p>
+            </div>
           </div>
-          <div class="border-t border-white/10 my-4"></div>
-          <div>
-            <h3 class="text-sm font-bold text-white mb-2">ACTIVITEITEN</h3>
-            <div id="activityLogList" class="space-y-2 text-sm text-slate-300"></div>
+
+          <!-- Logregels (zichtbaar zodra Naam* en actieve Deelcode zijn ingesteld) -->
+          <div id="activityLogList" class="hidden space-y-2.5">
+            <!-- Dynamisch gevuld -->
           </div>
         </div>
       </section>
     </main>
   </div>
 
-  <nav aria-label="Hoofdnavigatie" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-30">
+  <!-- Onderste glijdende Dock -->
+  <nav aria-label="Hoofdnavigatie" class="mobile-dock-wrap fixed bottom-4 left-1/2 -translate-x-1/2 z-30">
     <div id="bottomDock" class="relative glass-panel rounded-full p-1.5 flex items-center gap-1">
-      <div id="dockPill" class="dock-pill absolute top-1.5 bottom-1.5 left-1.5 rounded-full pointer-events-none" style="width: 60px;"></div>
-      <button type="button" data-tab-target="lijst" class="dock-tab-btn relative z-10 px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold text-white">Lijst</button>
-      <button type="button" data-tab-target="deelcode" class="dock-tab-btn relative z-10 px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold text-slate-300">Deelcode</button>
-      <button type="button" data-tab-target="log" class="dock-tab-btn relative z-10 px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold text-slate-300">Log</button>
+      <div id="dockPill" class="dock-pill absolute top-1.5 bottom-1.5 left-1.5 rounded-full pointer-events-none"></div>
+      <button type="button" data-tab-target="lijst" class="dock-tab-btn relative z-10 px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold text-white">
+        Lijst
+      </button>
+      <button type="button" data-tab-target="deelcode" class="dock-tab-btn relative z-10 px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold text-slate-300">
+        Deelcode
+      </button>
+      <button type="button" data-tab-target="log" class="dock-tab-btn relative z-10 px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold text-slate-300">
+        Log
+      </button>
     </div>
   </nav>
 
-  <div id="addItemModal" class="gw-modal-backdrop fixed inset-0 z-50 bg-slate-950/75 flex items-center justify-center p-4">
-    <div class="gw-modal-card glass-panel rounded-3xl w-full max-w-lg p-5 sm:p-6 space-y-4">
+  <!-- MODAL: Nieuw item toevoegen -->
+  <div id="addItemModal" class="gw-modal-backdrop fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div id="addItemCard" class="gw-modal-card glass-panel rounded-3xl w-full max-w-lg p-5 sm:p-6 space-y-4">
       <div class="flex items-center justify-between">
-        <h3 class="text-lg font-extrabold text-white">Nieuw item</h3>
-        <button id="closeAddModalBtn" class="glass-btn w-9 h-9 rounded-full flex items-center justify-center text-slate-200">✕</button>
+        <h3 class="text-lg font-extrabold text-white">Nieuw item toevoegen</h3>
+        <button id="closeAddModalBtn" type="button" class="glass-btn w-9 h-9 rounded-full flex items-center justify-center text-slate-200">
+          ✕
+        </button>
       </div>
+
       <form id="addItemForm" class="space-y-3.5">
         <div>
-          <label class="block text-xs font-bold text-slate-300 mb-1">Naam *</label>
-          <input id="itemNameInput" type="text" required class="w-full glass-card rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none" />
+          <label for="itemNameInput" class="block text-xs font-bold text-slate-300 mb-1">Naam van het item *</label>
+          <input
+            id="itemNameInput"
+            type="text"
+            required
+            placeholder="Bijv. Mechanisch toetsenbord"
+            class="w-full glass-card rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-400/70 focus:outline-none focus:border-sky-400/60"
+          />
         </div>
-        <div class="grid grid-cols-2 gap-3">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-bold text-slate-300 mb-1">Prijs (€) *</label>
-            <input id="itemPriceInput" type="number" step="0.01" min="0" required class="w-full glass-card rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none" />
+            <label for="itemPriceInput" class="block text-xs font-bold text-slate-300 mb-1">Prijs (€) *</label>
+            <input
+              id="itemPriceInput"
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              placeholder="49.99"
+              class="w-full glass-card rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-400/70 focus:outline-none focus:border-sky-400/60"
+            />
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-300 mb-1">Categorie</label>
-            <select id="itemCategorySelect" class="w-full glass-card rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white bg-slate-900 focus:outline-none">
-              <option value="Tech">Tech</option>
-              <option value="Kleding">Kleding</option>
-              <option value="Parfum">Parfum</option>
-              <option value="Overig">Overig</option>
+            <label for="itemCategorySelect" class="block text-xs font-bold text-slate-300 mb-1">Categorie</label>
+            <select
+              id="itemCategorySelect"
+              class="w-full glass-card rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white bg-slate-900 focus:outline-none focus:border-sky-400/60"
+            >
+              <option value="Tech & Gear">Tech &amp; Gear</option>
+              <option value="DIY Smart Glasses">DIY Smart Glasses</option>
+              <option value="Gaming & Coins">Gaming &amp; Coins</option>
+              <option value="Home & Living">Home &amp; Living</option>
             </select>
           </div>
         </div>
+
         <div>
-          <label class="block text-xs font-bold text-slate-300 mb-1">Link (optioneel)</label>
-          <input id="itemLinkInput" type="url" class="w-full glass-card rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none" />
+          <label for="itemLinkInput" class="block text-xs font-bold text-slate-300 mb-1">Link (optioneel)</label>
+          <input
+            id="itemLinkInput"
+            type="url"
+            placeholder="https://..."
+            class="w-full glass-card rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-400/70 focus:outline-none focus:border-sky-400/60"
+          />
         </div>
-        <div class="flex justify-end pt-2"><button type="submit" class="glass-btn px-5 py-2.5 rounded-xl text-sm font-bold text-sky-200">Opslaan</button></div>
+
+        <div>
+          <label for="itemNoteInput" class="block text-xs font-bold text-slate-300 mb-1">Notitie / specs (optioneel)</label>
+          <textarea
+            id="itemNoteInput"
+            rows="2"
+            placeholder="Extra info of voorkeur..."
+            class="w-full glass-card rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-400/70 focus:outline-none focus:border-sky-400/60"
+          ></textarea>
+        </div>
+
+        <label class="flex items-center gap-2.5 pt-1 text-xs sm:text-sm text-slate-200 cursor-pointer select-none">
+          <input id="surpriseShareCheckbox" type="checkbox" class="w-4 h-4 rounded accent-sky-400" />
+          <span>Alleen via deelcode (verrassing)</span>
+        </label>
+
+        <div class="flex justify-end gap-2.5 pt-2">
+          <button
+            type="submit"
+            class="glass-btn px-5 py-2.5 rounded-xl text-sm font-bold text-sky-200"
+          >
+            Opslaan
+          </button>
+        </div>
       </form>
     </div>
   </div>
 
-  <script>
-    // De key die je uit Supabase hebt gehaald (begint met sb_publishable_)
-    const SUPABASE_URL = 'https://bjxryjgnpybieblzkybs.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_-ksFydD7ozEhcVPVu540BQ_X0LgnUBN';
-    
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  <!-- MODAL: Item details -->
+  <div id="detailModal" class="gw-modal-backdrop fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div id="detailCard" class="gw-modal-card glass-panel rounded-3xl w-full max-w-md p-5 sm:p-6 space-y-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <span id="detailCategoryBadge" class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-500/20 text-sky-200 border border-sky-400/30 mb-1.5">
+            Categorie
+          </span>
+          <h3 id="detailTitle" class="text-lg font-extrabold text-white">Itemtitel</h3>
+        </div>
+        <button id="closeDetailModalBtn" type="button" class="glass-btn w-9 h-9 rounded-full flex items-center justify-center text-slate-200 shrink-0">
+          ✕
+        </button>
+      </div>
+      <div id="detailPrice" class="text-xl font-extrabold text-emerald-300">€0,00</div>
+      <p id="detailNote" class="text-sm text-slate-300/90 leading-relaxed"></p>
+      <div id="detailLinkWrap" class="hidden pt-1">
+        <button
+          id="detailLinkOpenBtn"
+          type="button"
+          class="glass-btn px-4 py-2 rounded-xl inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-sky-200"
+        >
+          <span>Link Openen</span>
+          <span>↗</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
-    let state = {
+  <!-- MODAL: Verwijderen bevestigen (Ja & Nee met Glass Wave Error Triangle) -->
+  <div id="deleteConfirmModal" class="gw-modal-backdrop fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div id="deleteConfirmCard" class="gw-modal-card glass-panel rounded-3xl w-full max-w-md p-6 text-center space-y-5">
+      <div class="glass-error-triangle w-20 h-20 mx-auto flex items-center justify-center" aria-hidden="true">
+        <svg class="w-full h-full" viewBox="0 0 120 108" fill="none">
+          <defs>
+            <linearGradient id="gwTriStrokeDel" x1="20" y1="12" x2="100" y2="96" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#ffa952" />
+              <stop offset="50%" stop-color="#f97316" />
+              <stop offset="100%" stop-color="#b43b08" />
+            </linearGradient>
+            <linearGradient id="gwTriExclaimDel" x1="60" y1="30" x2="60" y2="86" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#ff9933" />
+              <stop offset="100%" stop-color="#e04f06" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M52.5 14.2c3.35-5.8 11.65-5.8 15 0l39.2 67.8c3.35 5.8-.84 13.05-7.5 13.05H20.8c-6.66 0-10.85-7.25-7.5-13.05l39.2-67.8Z"
+            stroke="url(#gwTriStrokeDel)"
+            stroke-width="11.5"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M54.2 13.8 C57.2 9.6, 62.8 9.6, 65.8 13.8"
+            stroke="#fff7ed"
+            stroke-opacity="0.72"
+            stroke-width="3.6"
+            stroke-linecap="round"
+          />
+          <rect x="54.3" y="34.5" width="11.4" height="32.5" rx="5.7" fill="url(#gwTriExclaimDel)" />
+          <circle cx="60" cy="77.2" r="6.2" fill="url(#gwTriExclaimDel)" />
+        </svg>
+      </div>
+      <div class="space-y-1.5">
+        <h3 class="text-lg font-extrabold text-white">Item verplaatsen naar prullenbak?</h3>
+        <p id="deleteConfirmSubtitle" class="text-xs sm:text-sm text-slate-300/85">
+          Je kunt verwijderde items altijd terugzetten via de prullenbak rechtsboven.
+        </p>
+      </div>
+      <div class="flex items-center justify-center gap-3">
+        <button
+          id="confirmDeleteYesBtn"
+          type="button"
+          class="glass-btn px-6 py-2.5 rounded-xl text-sm font-bold text-rose-300 border-rose-400/40"
+        >
+          Ja
+        </button>
+        <button
+          id="confirmDeleteNoBtn"
+          type="button"
+          class="glass-btn px-6 py-2.5 rounded-xl text-sm font-bold text-sky-200"
+        >
+          Nee
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Deelcode verlaten bevestigen (Ja & Nee met Glass Wave Error Triangle) -->
+  <div id="leaveShareConfirmModal" class="gw-modal-backdrop fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div id="leaveShareConfirmCard" class="gw-modal-card glass-panel rounded-3xl w-full max-w-md p-6 text-center space-y-5">
+      <div class="glass-error-triangle w-20 h-20 mx-auto flex items-center justify-center" aria-hidden="true">
+        <svg class="w-full h-full" viewBox="0 0 120 108" fill="none">
+          <defs>
+            <linearGradient id="gwTriStrokeLeave" x1="20" y1="12" x2="100" y2="96" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#ffa952" />
+              <stop offset="50%" stop-color="#f97316" />
+              <stop offset="100%" stop-color="#b43b08" />
+            </linearGradient>
+            <linearGradient id="gwTriExclaimLeave" x1="60" y1="30" x2="60" y2="86" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#ff9933" />
+              <stop offset="100%" stop-color="#e04f06" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M52.5 14.2c3.35-5.8 11.65-5.8 15 0l39.2 67.8c3.35 5.8-.84 13.05-7.5 13.05H20.8c-6.66 0-10.85-7.25-7.5-13.05l39.2-67.8Z"
+            stroke="url(#gwTriStrokeLeave)"
+            stroke-width="11.5"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M54.2 13.8 C57.2 9.6, 62.8 9.6, 65.8 13.8"
+            stroke="#fff7ed"
+            stroke-opacity="0.72"
+            stroke-width="3.6"
+            stroke-linecap="round"
+          />
+          <rect x="54.3" y="34.5" width="11.4" height="32.5" rx="5.7" fill="url(#gwTriExclaimLeave)" />
+          <circle cx="60" cy="77.2" r="6.2" fill="url(#gwTriExclaimLeave)" />
+        </svg>
+      </div>
+      <div class="space-y-1.5">
+        <h3 class="text-lg font-extrabold text-white">Actieve deelcode verlaten?</h3>
+        <p id="leaveShareSubtitle" class="text-xs sm:text-sm text-slate-300/85">
+          Als je de deelcode verlaat, schakelt je lijst terug naar lokaal en worden gedeelde logs weer vergrendeld.
+        </p>
+      </div>
+      <div class="flex items-center justify-center gap-3">
+        <button
+          id="confirmLeaveShareYesBtn"
+          type="button"
+          class="glass-btn px-6 py-2.5 rounded-xl text-sm font-bold text-amber-300 border-amber-400/40"
+        >
+          Ja
+        </button>
+        <button
+          id="confirmLeaveShareNoBtn"
+          type="button"
+          class="glass-btn px-6 py-2.5 rounded-xl text-sm font-bold text-sky-200"
+        >
+          Nee
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Prullenbak verwijderde items -->
+  <div id="deletedItemsModal" class="gw-modal-backdrop fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div id="deletedItemsCard" class="gw-modal-card glass-panel rounded-3xl w-full max-w-lg p-5 sm:p-6 space-y-4 max-h-[82vh] flex flex-col">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <h3 class="text-lg font-extrabold text-white">Prullenbak</h3>
+          <p class="text-xs text-slate-300/80">Zoek of zet verwijderde items terug op je lijst</p>
+        </div>
+        <button id="closeDeletedModalBtn" type="button" class="glass-btn w-9 h-9 rounded-full flex items-center justify-center text-slate-200 shrink-0">
+          ✕
+        </button>
+      </div>
+
+      <input
+        id="searchTrashInput"
+        type="text"
+        placeholder="Zoek in prullenbak..."
+        class="w-full glass-card rounded-xl px-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-400/75 focus:outline-none focus:border-sky-400/60"
+      />
+
+      <div id="deletedItemsList" class="space-y-2.5 overflow-y-auto flex-1 pr-1">
+        <!-- Dynamisch gevuld -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'gw_kerstlijst_2026_v2';
+    // Configureer dit op GitHub Pages naar je HTTPS FastAPI-adres.
+    // Bijvoorbeeld: window.GW_API_BASE = 'https://api.jouwdomein.nl';
+    const GW_API_BASE = (window.GW_API_BASE || '').replace(/\/$/, '');
+    const GW_API_ENABLED = Boolean(GW_API_BASE);
+    const GW_SYNC_DEBOUNCE_MS = 650;
+    const GW_MAX_IMPORT_BYTES = 1_000_000;
+    let gwSyncTimer = null;
+    let gwSyncInProgress = false;
+    let gwApplyingRemote = false;
+    let gwShareVersion = 0;
+    let gwLastSyncAt = 0;
+
+    function gwTokenStorageKey(code) {
+      return `gw_share_token_${String(code || '').toUpperCase()}`;
+    }
+
+    function gwGetShareToken(code = state.shareCode) {
+      try { return localStorage.getItem(gwTokenStorageKey(code)) || ''; }
+      catch (_) { return ''; }
+    }
+
+    function gwSetShareToken(code, token) {
+      try { localStorage.setItem(gwTokenStorageKey(code), token); }
+      catch (_) { showToast('Kon de beveiligde toegangssleutel niet lokaal opslaan.'); }
+    }
+
+    function gwRemoveShareToken(code) {
+      try { localStorage.removeItem(gwTokenStorageKey(code)); } catch (_) {}
+    }
+
+    async function gwApi(path, options = {}) {
+      if (!GW_API_ENABLED) throw new Error('De API is nog niet ingesteld. Configureer GW_API_BASE in index.html.');
+      const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+      const token = options.token || gwGetShareToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const response = await fetch(`${GW_API_BASE}${path}`, {
+        ...options,
+        headers,
+        credentials: 'omit',
+        cache: 'no-store'
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = body.detail || `API-fout (${response.status})`;
+        throw new Error(typeof message === 'string' ? message : JSON.stringify(message));
+      }
+      return body;
+    }
+
+    function gwSharedPayload() {
+      return {
+        budgetTarget: Number(state.budgetTarget) || 400,
+        items: Array.isArray(state.items) ? state.items : [],
+        deletedItems: Array.isArray(state.deletedItems) ? state.deletedItems : [],
+        logs: Array.isArray(state.logs) ? state.logs.slice(0, 60) : []
+      };
+    }
+
+    function gwApplySharedPayload(payload) {
+      if (!payload || typeof payload !== 'object') throw new Error('De server stuurde ongeldige lijstgegevens.');
+      gwApplyingRemote = true;
+      state.budgetTarget = Number(payload.budgetTarget) || 400;
+      state.items = Array.isArray(payload.items) ? payload.items : [];
+      state.deletedItems = Array.isArray(payload.deletedItems) ? payload.deletedItems : [];
+      state.logs = Array.isArray(payload.logs) ? payload.logs.slice(0, 60) : [];
+      saveState();
+      gwApplyingRemote = false;
+      renderHeaderAndSync();
+      renderWishlist();
+      renderDeletedModal();
+      renderActivityLog();
+    }
+
+    function gwScheduleSync() {
+      if (!GW_API_ENABLED || gwApplyingRemote || !hasActiveShare() || !gwGetShareToken()) return;
+      clearTimeout(gwSyncTimer);
+      gwSyncTimer = setTimeout(() => gwPushSharedState(), GW_SYNC_DEBOUNCE_MS);
+    }
+
+    async function gwPushSharedState() {
+      if (!GW_API_ENABLED || gwApplyingRemote || gwSyncInProgress || !hasActiveShare()) return;
+      const token = gwGetShareToken();
+      if (!token) return;
+      gwSyncInProgress = true;
+      try {
+        const result = await gwApi(`/api/shares/${encodeURIComponent(state.shareCode)}/state`, {
+          method: 'PUT',
+          token,
+          body: JSON.stringify({ state: gwSharedPayload(), version: gwShareVersion })
+        });
+        gwShareVersion = result.version;
+        gwLastSyncAt = Date.now();
+      } catch (error) {
+        console.error('Glass Wave sync error:', error);
+        showToast(`Synchronisatie mislukt: ${error.message}`);
+      } finally {
+        gwSyncInProgress = false;
+      }
+    }
+
+    async function gwPullSharedState() {
+      const result = await gwApi(`/api/shares/${encodeURIComponent(state.shareCode)}/state`, {
+        method: 'GET'
+      });
+      gwShareVersion = result.version || 0;
+      gwApplySharedPayload(result.state);
+    }
+
+    async function gwPollSharedState() {
+      if (!GW_API_ENABLED || !hasActiveShare() || !gwGetShareToken() || gwSyncInProgress) return;
+      try {
+        const result = await gwApi(`/api/shares/${encodeURIComponent(state.shareCode)}/state`, { method: 'GET' });
+        if (Number(result.version) > gwShareVersion) {
+          gwShareVersion = Number(result.version);
+          gwApplySharedPayload(result.state);
+          showToast('Gedeelde lijst bijgewerkt.');
+        }
+      } catch (error) {
+        console.warn('Glass Wave polling:', error);
+      }
+    }
+
+    async function gwCreateShare(name) {
+      const result = await gwApi('/api/shares', {
+        method: 'POST',
+        body: JSON.stringify({ name, state: gwSharedPayload() })
+      });
+      state.userName = name;
+      state.shareCode = result.code;
+      gwSetShareToken(result.code, result.access_token);
+      gwShareVersion = result.version || 1;
+      addLogEntry(`${name} heeft een nieuwe gedeelde lijst aangemaakt.`);
+      saveState();
+      renderHeaderAndSync();
+      renderActivityLog();
+      showToast(`Deelcode aangemaakt: ${result.code}`);
+    }
+
+    async function gwJoinShare(name, code) {
+      const result = await gwApi(`/api/shares/${encodeURIComponent(code)}/join`, {
+        method: 'POST',
+        body: JSON.stringify({ name })
+      });
+      state.userName = name;
+      state.shareCode = result.code;
+      gwSetShareToken(result.code, result.access_token);
+      gwShareVersion = result.version || 1;
+      gwApplySharedPayload(result.state);
+      addLogEntry(`${name} is verbonden met de gedeelde lijst.`);
+      saveState();
+      renderHeaderAndSync();
+      renderActivityLog();
+      showToast(`Verbonden met ${result.code}.`);
+    }
+
+    function gwExportJson() {
+      const backup = {
+        format: 'sic-corp-glass-wave-wishlist',
+        schemaVersion: 1,
+        exportedAt: new Date().toISOString(),
+        data: gwSharedPayload()
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `glass-wave-kerstlijst-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('JSON-back-up geëxporteerd.');
+    }
+
+    function gwValidateImportedItem(item) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+      const name = String(item.name || '').trim().slice(0, 120);
+      if (!name) return null;
+      const rawLink = String(item.link || '').trim().slice(0, 2048);
+      let safeLink = '';
+      if (rawLink) {
+        try {
+          const u = new URL(normalizeUrl(rawLink));
+          if (u.protocol === 'https:' || u.protocol === 'http:') safeLink = u.href;
+        } catch (_) {}
+      }
+      return {
+        id: `item-${crypto.randomUUID ? crypto.randomUUID() : Date.now() + Math.random()}`,
+        name,
+        price: Math.max(0, Math.min(1_000_000, Number(item.price) || 0)),
+        category: CATEGORIES.includes(item.category) ? item.category : 'Tech & Gear',
+        link: safeLink,
+        note: String(item.note || '').slice(0, 1000),
+        checked: Boolean(item.checked),
+        surpriseShare: Boolean(item.surpriseShare)
+      };
+    }
+
+    async function gwImportJson(file) {
+      if (!file) return;
+      if (file.size > GW_MAX_IMPORT_BYTES) throw new Error('Het JSON-bestand is groter dan 1 MB.');
+      const parsed = JSON.parse(await file.text());
+      if (!parsed || parsed.format !== 'sic-corp-glass-wave-wishlist' || parsed.schemaVersion !== 1 || !parsed.data) {
+        throw new Error('Dit is geen ondersteunde Glass Wave JSON-back-up.');
+      }
+      if (!Array.isArray(parsed.data.items) || parsed.data.items.length > 500 ||
+          !Array.isArray(parsed.data.deletedItems || []) || (parsed.data.deletedItems || []).length > 500) {
+        throw new Error('De JSON bevat te veel of ongeldige items.');
+      }
+      const importedItems = parsed.data.items.map(gwValidateImportedItem).filter(Boolean);
+      const importedDeleted = (parsed.data.deletedItems || []).map(gwValidateImportedItem).filter(Boolean);
+      state.items = importedItems;
+      state.deletedItems = importedDeleted;
+      state.budgetTarget = Math.max(1, Math.min(1_000_000, Number(parsed.data.budgetTarget) || 400));
+      state.logs = Array.isArray(parsed.data.logs)
+        ? parsed.data.logs.slice(0, 60).map((entry) => ({
+            id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            text: String(entry?.text || '').slice(0, 500),
+            time: String(entry?.time || '').slice(0, 20)
+          }))
+        : [];
+      addLogEntry('Lijst hersteld vanuit een JSON-back-up.');
+      saveState();
+      renderHeaderAndSync();
+      renderWishlist();
+      renderDeletedModal();
+      renderActivityLog();
+      await gwPushSharedState();
+      showToast('JSON-back-up geïmporteerd.');
+    }
+    const CATEGORIES = ['Alles', 'Tech & Gear', 'DIY Smart Glasses', 'Gaming & Coins', 'Home & Living'];
+
+    const DEFAULT_STATE = {
       userName: '',
       shareCode: '',
+      budgetTarget: 400,
+      selectedCategory: 'Alles',
+      searchQuery: '',
+      logSearchQuery: '',
+      trashSearchQuery: '',
+      sortBy: 'default',
+      worldHidden: false,
       items: [
-        { id: 'item-1', name: 'Redragon M913 Impact Elite Wireless Gaming Muis', price: 54.99, category: 'Tech', link: 'https://www.amazon.nl/-/en/Redragon-M913-Wireless-Programmable-Operation/dp/B088B3ZM76', checked: false },
-        { id: 'item-2', name: 'Eleganzzz Dekbedovertrek Flanel Fleece Dark Grey', price: 34.95, category: 'Overig', link: 'https://www.bol.com/nl/nl/p/eleganzzz-dekbedovertrek-flanel-fleece-dark-grey-dekbedovertrek-200x200-220cm-100-flanel-fleece-tweepersoons-dekbedovertrekken/9300000161238083/', checked: false },
-        { id: 'item-3', name: 'Grand Theft Auto 6 (GTA VI) — Xbox Series X|S', price: 79.99, category: 'Tech', link: 'https://www.mediamarkt.nl/nl/product/_grand-theft-auto-6-gta-vi-xbox-series-xs-code-in-a-box-1916873.html', checked: false },
-        { id: 'item-4', name: 'Microsoft Xbox Series X 1TB + Forza Horizon 5 & Qware Bundel', price: 629.99, category: 'Tech', link: 'https://www.mediamarkt.nl/nl/product/_microsoft-xbox-series-x-1tb-forza-horizon-5-qware-headset-qware-dual-charger-1722909.html', checked: false },
-        { id: 'item-5', name: 'Xiaomi Redmi Pad 2 WiFi 8GB/256GB — Grijs', price: 229.00, category: 'Tech', link: 'https://www.bol.com/nl/nl/p/xiaomi-redmi-pad-2-wifi-8gb-256gb-grijs/9300000240365179/', checked: false },
-        { id: 'item-6', name: 'Xiaomi Precision Screwdriver Kit (24-delig)', price: 19.99, category: 'Tech', link: 'https://www.amazon.nl/Xiaomi-MJJXLSD002QW-Precision-Screwdriver-Kit/dp/B08MV2H7KD', checked: false },
-        { id: 'item-7', name: 'Robux (Roblox Digitaal Variabel)', price: 10.00, category: 'Overig', link: 'https://www.primera.nl/roblox-digitaal-variabel', checked: false },
-        { id: 'item-8', name: 'Luduvo Lunes', price: 10.00, category: 'Overig', link: 'https://luduvo.com/store', checked: false },
-        { id: 'item-9', name: '2-in-1 Galaxy Projector Nachtlampje & Sterrenprojector', price: 19.95, category: 'Overig', link: 'https://www.bol.com/nl/nl/p/2-in-1-galaxy-projector-nachtlampje-usb-sterrenprojector-met-3-soorten-projectiefilms-instelbare-helderheid-mini-lichtprojector-voor-plafond-muur-en-slaapkamerdecoratie/9300000344280991/', checked: false },
-        { id: 'item-10', name: 'Google One AI Pro / 400GB — 3 maanden', price: 4.92, category: 'Tech', link: 'https://one.google.com/intl/nl_nl/about/google-ai-plans/', checked: false },
-        { id: 'item-11', name: 'Samsung Galaxy S22 Ultra (Tradera)', price: 274.13, category: 'Tech', link: 'https://www.tradera.com/nl/item/260103/761999976/samsung-galaxy-s22-ultra', checked: false },
-        { id: 'item-12', name: 'Samsung GT-I5510 (Tradera)', price: 0, category: 'Tech', link: 'https://www.tradera.com/nl/item/260103/761074838/samsung-gt-i5510', checked: false }
+        {
+          id: 'item-1',
+          name: 'Redragon M913 Impact Elite Wireless Gaming Muis',
+          price: 54.99,
+          category: 'Tech & Gear',
+          link: 'https://www.amazon.nl/-/en/Redragon-M913-Wireless-Programmable-Operation/dp/B088B3ZM76/ref=sr_1_1?ar_srct=T1&ar_su=https%3A%2F%2Fwww.amazon.co.uk%2Fdp%2FB088B3ZM76%3FlinkCode%3Dosi%26psc%3D1%26ascsubtag%3D23587324461%26th%3D1%26tag%3Dceukreviews-21%26creatorsDisableRedirect%3Dtrue&creatorsDisableRedirect=true&sr=8-1',
+          note: 'Draadloze/bedrade MMO gaming muis met 16.000 DPI, 16 programmeerbare knoppen en RGB.',
+          checked: false,
+          surpriseShare: false
+        },
+        {
+          id: 'item-2',
+          name: 'Eleganzzz Dekbedovertrek Flanel Fleece Dark Grey (200x200/220)',
+          price: 34.95,
+          category: 'Home & Living',
+          link: 'https://www.bol.com/nl/nl/p/eleganzzz-dekbedovertrek-flanel-fleece-dark-grey-dekbedovertrek-200x200-220cm-100-flanel-fleece-tweepersoons-dekbedovertrekken/9300000161238083/?Referrer=ADVNLGOO002035-S--9300000161238083-PMAX-C-22284967635',
+          note: '100% flanel fleece tweepersoons dekbedovertrek in Dark Grey (200x200/220 cm).',
+          checked: false,
+          surpriseShare: false
+        },
+        {
+          id: 'item-3',
+          name: 'Grand Theft Auto 6 (GTA VI) — Xbox Series X|S',
+          price: 79.99,
+          category: 'Gaming & Coins',
+          link: 'https://www.mediamarkt.nl/nl/product/_grand-theft-auto-6-gta-vi-xbox-series-xs-code-in-a-box-1916873.html',
+          note: 'Xbox Series X|S (Code in a box) via MediaMarkt.',
+          checked: false,
+          surpriseShare: false
+        },
+        {
+          id: 'item-4',
+          name: 'Microsoft Xbox Series X 1TB + Forza Horizon 5 & Qware Bundel',
+          price: 629.99,
+          category: 'Gaming & Coins',
+          link: 'https://www.mediamarkt.nl/nl/product/_microsoft-xbox-series-x-1tb-forza-horizon-5-qware-headset-qware-dual-charger-1722909.html',
+          note: 'Xbox Series X 1TB console inclusief Forza Horizon 5, Qware Headset en Dual Charger.',
+          checked: false,
+          surpriseShare: false
+        },
+        {
+          id: 'item-5',
+          name: 'Xiaomi Redmi Pad 2 WiFi 8GB/256GB — Grijs',
+          price: 229.0,
+          category: 'Tech & Gear',
+          link: 'https://www.bol.com/nl/nl/p/xiaomi-redmi-pad-2-wifi-8gb-256gb-grijs/9300000240365179/?cid=1795624634377-1330565792710',
+          note: '11" 2.5K display, 8GB RAM, 256GB opslag en 9000mAh batterij.',
+          checked: false,
+          surpriseShare: false
+        },
+        {
+          id: 'item-6',
+          name: 'Xiaomi Precision Screwdriver Kit (24-delig)',
+          price: 19.99,
+          category: 'DIY Smart Glasses',
+          link: 'https://www.amazon.nl/Xiaomi-MJJXLSD002QW-Precision-Screwdriver-Kit/dp/B08MV2H7KD/ref=asc_df_B08MV2H7KD?mcid=4ff05b151248353f98a5e208b1bf0d4d&hvadid=710028253903&hvpos=&hvnetw=g&hvrand=15022357352509998563&hvpone=&hvptwo=&hvqmt=&hvdev=c&hvdvcmdl=&hvlocint=&hvlocphy=9063866&hvtargid=pla-1151157299029&hvcampaign=21596236798&psc=1&hvocijid=15022357352509998563-B08MV2H7KD-&hvexpln=0',
+          note: 'Aluminium precisieschroevendraaierset met 24 magnetische bits voor elektronica & DIY.',
+          checked: false,
+          surpriseShare: false
+        },
+        {
+          id: 'item-7',
+          name: 'Robux (Roblox Digitaal Variabel)',
+          price: 10.0,
+          category: 'Gaming & Coins',
+          link: 'https://www.primera.nl/roblox-digitaal-variabel?channable=08e064736b7500524f424c4f585f564152e6&utm_campaign=&utm_content=&utm_term=&adgroupid=',
+          note: 'Digitale Roblox-kaart / Robux via Primera.',
+          checked: false,
+          surpriseShare: false
+        },
+        {
+          id: 'item-8',
+          name: 'Luduvo Lunes',
+          price: 10.0,
+          category: 'DIY Smart Glasses',
+          link: 'https://luduvo.com/store',
+          note: 'Luduvo Lunes via de officiële Luduvo store.',
+          checked: false,
+          surpriseShare: false
+        },
+        {
+          id: 'item-9',
+          name: '2-in-1 Galaxy Projector Nachtlampje & Sterrenprojector',
+          price: 19.95,
+          category: 'Home & Living',
+          link: 'https://www.bol.com/nl/nl/p/2-in-1-galaxy-projector-nachtlampje-usb-sterrenprojector-met-3-soorten-projectiefilms-instelbare-helderheid-mini-lichtprojector-voor-plafond-muur-en-slaapkamerdecoratie/9300000344280991/?Referrer=ADVNLGOO002035-S--9300000344280991-PMAX-C-22284967635',
+          note: 'USB sterren- en galaxy projector met 3 projectiefilms en instelbare helderheid voor plafond en muur.',
+          checked: false,
+          surpriseShare: false
+        },
+        {
+          id: 'item-10',
+          name: 'Google One AI Pro / 400GB — 3 maanden',
+          price: 4.92,
+          category: 'Tech & Gear',
+          link: 'https://one.google.com/intl/nl_nl/about/google-ai-plans/',
+          note: '3 maanden Google One (400 GB à €1,64/mnd = €4,92 totaal).',
+          checked: false,
+          surpriseShare: false
+        },
+        {
+          id: 'item-11',
+          name: 'Samsung Galaxy S22 Ultra (Tradera)',
+          price: 274.13,
+          category: 'Tech & Gear',
+          link: 'https://www.tradera.com/nl/item/260103/761999976/samsung-galaxy-s22-ultra',
+          note: 'Samsung Galaxy S22 Ultra listing via Tradera.',
+          checked: false,
+          surpriseShare: false
+        },
+        {
+          id: 'item-12',
+          name: 'Samsung GT-I5510 (Tradera)',
+          price: 0,
+          category: 'Tech & Gear',
+          link: 'https://www.tradera.com/nl/item/260103/761074838/samsung-gt-i5510',
+          note: 'Samsung GT-I5510 slider-telefoon listing via Tradera.',
+          checked: false,
+          surpriseShare: false
+        }
       ],
-      members: [],
-      logs: []
+      deletedItems: [],
+      logs: [
+        {
+          id: 'log-init-1',
+          text: 'Glass Wave kerstlijst geladen met 10 items voor 2026.',
+          time: '17:38'
+        }
+      ]
     };
 
-    function updateUI() {
-      document.getElementById('userBadge').textContent = state.userName ? state.userName.toUpperCase() : 'GUEST';
-      document.getElementById('headerSubStatus').textContent = state.shareCode ? `Code: ${state.shareCode}` : 'Lokaal';
-      document.getElementById('activeShareCodeText').textContent = state.shareCode || 'Geen';
-      document.getElementById('activeParticipantText').textContent = state.userName || 'Niet ingesteld';
-      document.getElementById('logCodeText').textContent = state.shareCode || 'GEEN';
-      
-      const membersDiv = document.getElementById('logMembersList');
-      if (state.members.length === 0) {
-        membersDiv.innerHTML = '<div class="text-slate-500">Geen leden.</div>';
-      } else {
-        membersDiv.innerHTML = state.members.map(m => `
-          <div class="flex justify-between border-b border-white/5 py-1"><span>${m.name}</span><span class="text-emerald-400 font-bold text-xs">JOINED</span></div>
-        `).join('');
-      }
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return structuredClone(DEFAULT_STATE);
+        const parsed = JSON.parse(raw);
+        const mergedItems = Array.isArray(parsed.items)
+          ? parsed.items
+              .filter((it) => it && typeof it.id === 'string')
+              .map((it) => {
+                if (it && it.id === 'item-5' && Number(it.price) === 249) {
+                  return { ...it, price: 229.0 };
+                }
+                if (it && it.id === 'item-6' && Number(it.price) === 22.99) {
+                  return { ...it, price: 19.99 };
+                }
+                if (it && it.id === 'item-10' && Number(it.price) === 14.97) {
+                  return {
+                    ...it,
+                    price: 4.92,
+                    note: '3 maanden Google One (400 GB à €1,64/mnd = €4,92 totaal).'
+                  };
+                }
+                return it;
+              })
+          : structuredClone(DEFAULT_STATE.items);
 
-      const logDiv = document.getElementById('activityLogList');
-      if (state.logs.length === 0) {
-        logDiv.innerHTML = '<div class="text-slate-500">Geen activiteiten.</div>';
-      } else {
-        logDiv.innerHTML = state.logs.map(l => `
-          <div class="py-1"><span class="text-sky-400 text-xs mr-2">[${l.time}]</span> ${l.text}</div>
-        `).join('');
-      }
-    }
-
-    async function syncData() {
-      if (!state.shareCode) return;
-      const { data } = await supabase.from('groups').select('*').eq('code', state.shareCode).single();
-      if (data) {
-        state.items = data.items || [];
-        state.members = data.members || [];
-        state.logs = data.logs || [];
-        renderItems();
-        updateUI();
-      }
-    }
-
-    async function pushData(logMessage) {
-      if (!state.shareCode) return;
-      if (logMessage) {
-        state.logs.unshift({ text: logMessage, time: new Date().toLocaleTimeString('nl-NL', {hour: '2-digit', minute:'2-digit'}) });
-      }
-      await supabase.from('groups').update({
-        items: state.items,
-        members: state.members,
-        logs: state.logs
-      }).eq('code', state.shareCode);
-      updateUI();
-    }
-
-    document.getElementById('quickNameInput').addEventListener('input', (e) => {
-      state.userName = e.target.value;
-      updateUI();
-    });
-
-    document.getElementById('createShareCodeBtn').addEventListener('click', async () => {
-      const name = document.getElementById('shareNameInput').value.trim();
-      if (!name) return alert('Vul je naam in.');
-      state.userName = name;
-
-      const prefix = 'ROY'; // Jouw code
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let code = prefix + '-';
-      for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
-      code += '-';
-      for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
-
-      const { data, error } = await supabase.from('groups').insert([{
-        code: code,
-        admin_name: name,
-        members: [{ name: name, role: 'admin' }],
-        logs: [{ text: `${name} heeft de groep aangemaakt.`, time: new Date().toLocaleTimeString('nl-NL', {hour: '2-digit', minute:'2-digit'}) }]
-      }]).select().single();
-
-      if (error) return alert('Fout: ' + error.message);
-      
-      state.shareCode = data.code;
-      state.members = data.members;
-      state.logs = data.logs;
-      document.getElementById('quickNameInput').value = name;
-      alert(`Code aangemaakt: ${code}\nDeel deze code met je familie!`);
-      updateUI();
-      syncData();
-    });
-
-    document.getElementById('joinShareCodeBtn').addEventListener('click', async () => {
-      const name = document.getElementById('shareNameInput').value.trim();
-      const code = document.getElementById('shareCodeInput').value.trim().toUpperCase();
-      if (!name || !code) return alert('Vul je naam en de code in.');
-
-      const { data, error } = await supabase.from('groups').select('*').eq('code', code).single();
-      if (error || !data) return alert('Code niet gevonden.');
-
-      if (!data.members.find(m => m.name === name)) {
-        data.members.push({ name: name, role: 'member' });
-        data.logs.unshift({ text: `${name} is lid geworden van de groep.`, time: new Date().toLocaleTimeString('nl-NL', {hour: '2-digit', minute:'2-digit'}) });
-        
-        await supabase.from('groups').update({
-          members: data.members,
-          logs: data.logs
-        }).eq('code', code);
-      }
-
-      state.userName = name;
-      state.shareCode = code;
-      state.items = data.items || [];
-      state.members = data.members;
-      state.logs = data.logs;
-      
-      document.getElementById('quickNameInput').value = name;
-      alert(`Je bent nu lid van ${code}`);
-      renderItems();
-      updateUI();
-    });
-
-    document.getElementById('leaveShareCodeBtn').addEventListener('click', () => {
-      state.shareCode = '';
-      state.items = []; // Reset naar standaard? Of laat de items staan? Ik laat ze even staan.
-      state.members = [];
-      state.logs = [];
-      alert('Je hebt de groep verlaten.');
-      renderItems();
-      updateUI();
-    });
-
-    function renderItems() {
-      const container = document.getElementById('wishlistItemsContainer');
-      const totalCount = state.items.length;
-      document.getElementById('itemCountPill').textContent = `${totalCount} items`;
-      
-      let total = 0;
-      let checked = 0;
-
-      if (totalCount === 0) {
-        container.innerHTML = '<div class="text-center text-slate-400 py-4">Geen items gevonden.</div>';
-      } else {
-        container.innerHTML = state.items.map((item, index) => {
-          total += Number(item.price) || 0;
-          if (item.checked) checked += Number(item.price) || 0;
-          return `
-            <div class="glass-card rounded-2xl p-4 flex items-center justify-between gap-3">
-              <div>
-                <div class="font-bold text-white ${item.checked ? 'line-through opacity-50' : ''}">${item.name}</div>
-                <div class="text-sm text-sky-300 font-bold">€${(Number(item.price)||0).toFixed(2).replace('.', ',')}</div>
-              </div>
-              <div class="flex gap-2">
-                <button onclick="toggleItem(${index})" class="glass-btn w-9 h-9 rounded-xl flex items-center justify-center ${item.checked ? 'text-emerald-300' : 'text-slate-300'}">✓</button>
-              </div>
-            </div>
-          `;
-        }).join('');
-      }
-
-      document.getElementById('totalBudgetSpent').textContent = `€${checked.toFixed(2).replace('.', ',')}`;
-      document.getElementById('checkedAmountLabel').textContent = `Totaal lijst: €${total.toFixed(2).replace('.', ',')}`;
-      const target = 400;
-      const pct = Math.min(100, Math.round((checked / target) * 100));
-      document.getElementById('budgetPercentLabel').textContent = `${pct}% van budget`;
-      document.getElementById('budgetProgressBar').style.width = `${pct}%`;
-    }
-
-    window.toggleItem = function(index) {
-      state.items[index].checked = !state.items[index].checked;
-      const item = state.items[index];
-      pushData(`${state.userName} heeft ${item.name} ${item.checked ? 'afgevinkt' : 'heropend'}.`);
-      renderItems();
-    };
-
-    document.getElementById('openAddModalBtn').addEventListener('click', () => document.getElementById('addItemModal').classList.add('is-open'));
-    document.getElementById('closeAddModalBtn').addEventListener('click', () => document.getElementById('addItemModal').classList.remove('is-open'));
-
-    document.getElementById('addItemForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const newItem = {
-        id: Date.now().toString(),
-        name: document.getElementById('itemNameInput').value,
-        price: Number(document.getElementById('itemPriceInput').value) || 0,
-        category: document.getElementById('itemCategorySelect').value,
-        link: document.getElementById('itemLinkInput').value,
-        checked: false
-      };
-      state.items.unshift(newItem);
-      pushData(`${state.userName} heeft ${newItem.name} toegevoegd.`);
-      renderItems();
-      document.getElementById('addItemModal').classList.remove('is-open');
-      e.target.reset();
-    });
-
-    document.querySelectorAll('.dock-tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-section').forEach(s => s.classList.add('hidden'));
-        document.getElementById(`tab-${btn.dataset.tabTarget}`).classList.remove('hidden');
-        document.querySelectorAll('.dock-tab-btn').forEach(b => { b.classList.remove('text-white'); b.classList.add('text-slate-300'); });
-        btn.classList.add('text-white'); btn.classList.remove('text-slate-300');
-      });
-    });
-
-    setInterval(() => { if (state.shareCode) syncData(); }, 5000);
-    renderItems();
-    updateUI();
-  </script>
-</body>
-</html>
+        // Zorg dat de nieuwe cadeaus ook in een bestaande opgeslagen lijst verschijnen
+        const existingIds = new Set(mergedItems.map((it) => it.id));
+        const deletedIds = new Set(
+          Array.isArray(parsed.d
