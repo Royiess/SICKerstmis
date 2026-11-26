@@ -1,5 +1,4 @@
-<!DOCTYPE html>
-<html lang="nl" class="dark">
+@@ -3,566 +3,61 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -566,14 +565,7 @@
         <div class="glass-card rounded-2xl p-4 sm:p-5 space-y-4">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div class="text-xs font-semibold text-slate-300/85">Budgetoverzicht</div>
-              <div class="mt-1 flex items-baseline gap-2 flex-wrap">
-                <span id="totalBudgetSpent" class="text-2xl sm:text-3xl font-extrabold text-white">€0,00</span>
-                <span id="budgetTargetLabel" class="text-xs sm:text-sm text-slate-300/80">/ €400,00 doel</span>
-              </div>
-            </div>
-            <div class="text-left sm:text-right">
-              <div id="checkedAmountLabel" class="text-xs sm:text-sm font-bold text-emerald-400">Totaal lijst: €0,00</div>
+@@ -577,2203 +72,340 @@ <h1 class="mobile-section-title text-xl sm:text-2xl font-extrabold tracking-tigh
               <div id="budgetPercentLabel" class="text-xs text-slate-300/80">0% van budget</div>
             </div>
           </div>
@@ -636,6 +628,7 @@
         <div id="wishlistItemsContainer" class="space-y-3">
           <!-- Dynamisch gevuld -->
         </div>
+
       </section>
 
       <!-- TAB 2: DEELCODE -->
@@ -938,6 +931,7 @@
             Opslaan
           </button>
         </div>
+
       </form>
     </div>
   </div>
@@ -1518,4 +1512,1302 @@
         // Zorg dat de nieuwe cadeaus ook in een bestaande opgeslagen lijst verschijnen
         const existingIds = new Set(mergedItems.map((it) => it.id));
         const deletedIds = new Set(
-          Array.isArray(parsed.d
+          Array.isArray(parsed.deletedItems) ? parsed.deletedItems.map((d) => d && d.id) : []
+        );
+        ['item-7', 'item-8', 'item-9', 'item-10', 'item-11', 'item-12'].forEach((newId) => {
+          if (!existingIds.has(newId) && !deletedIds.has(newId)) {
+            const templateItem = DEFAULT_STATE.items.find((d) => d.id === newId);
+            if (templateItem) {
+              mergedItems.push(structuredClone(templateItem));
+            }
+          }
+        });
+
+        return {
+          ...structuredClone(DEFAULT_STATE),
+          ...parsed,
+          items: mergedItems,
+          deletedItems: Array.isArray(parsed.deletedItems) ? parsed.deletedItems : [],
+          logs: Array.isArray(parsed.logs) ? parsed.logs : structuredClone(DEFAULT_STATE.logs)
+        };
+      } catch (err) {
+        console.error('Fout bij laden van state:', err);
+        return structuredClone(DEFAULT_STATE);
+      }
+    }
+
+    let state = loadState();
+    let pendingDeleteId = null;
+    let pendingLeaveShareCode = false;
+    let currentDetailLink = '';
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (err) {
+        console.error('Fout bij opslaan van state:', err);
+      }
+      gwScheduleSync();
+    }
+
+    function formatEuro(amount) {
+      const num = Number(amount) || 0;
+      return '€' + num.toFixed(2).replace('.', ',');
+    }
+
+    function currentTimeStr() {
+      const now = new Date();
+      return now.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function addLogEntry(text) {
+      state.logs.unshift({
+        id: 'log-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+        text,
+        time: currentTimeStr()
+      });
+      if (state.logs.length > 60) {
+        state.logs = state.logs.slice(0, 60);
+      }
+    }
+
+    function getDisplayBadge() {
+      const clean = (state.userName || '').trim();
+      if (!clean) return 'GUEST';
+      return clean.toUpperCase();
+    }
+
+    function hasValidName() {
+      return (state.userName || '').trim().length > 0;
+    }
+
+    function hasActiveShare() {
+      return (state.shareCode || '').trim().length > 0;
+    }
+
+    function normalizeUrl(rawUrl) {
+      const trimmed = (rawUrl || '').trim();
+      if (!trimmed) return '';
+      if (/^https?:\/\//i.test(trimmed)) return trimmed;
+      return 'https://' + trimmed;
+    }
+
+    function triggerOpenLink(rawUrl) {
+      const safeUrl = normalizeUrl(rawUrl);
+      if (!safeUrl) {
+        showToast('Geen geldige link gevonden voor dit item.');
+        return;
+      }
+      try {
+        const win = window.open(safeUrl, '_blank', 'noopener,noreferrer');
+        if (!win) {
+          window.location.assign(safeUrl);
+        }
+      } catch (_) {
+        showToast(`Link: ${safeUrl}`);
+      }
+    }
+
+    let toastTimer = null;
+    function showToast(message) {
+      const banner = document.getElementById('toastBanner');
+      const label = document.getElementById('toastText');
+      if (!banner || !label) return;
+      label.textContent = message;
+      banner.classList.remove('opacity-0', 'translate-y-2');
+      banner.classList.add('opacity-100', 'translate-y-0');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        banner.classList.remove('opacity-100', 'translate-y-0');
+        banner.classList.add('opacity-0', 'translate-y-2');
+      }, 2600);
+    }
+
+    function openAnimatedModal(backdropId, cardId) {
+      const backdrop = document.getElementById(backdropId);
+      const card = document.getElementById(cardId);
+      if (!backdrop || !card) return;
+      backdrop.classList.add('is-open');
+      requestAnimationFrame(() => {
+        card.classList.add('is-open');
+      });
+    }
+
+    function closeAnimatedModal(backdropId, cardId, afterClose) {
+      const backdrop = document.getElementById(backdropId);
+      const card = document.getElementById(cardId);
+      if (!backdrop || !card) return;
+      backdrop.classList.remove('is-open');
+      setTimeout(() => {
+        if (typeof afterClose === 'function') afterClose();
+      }, 240);
+    }
+
+    function syncSurpriseCheckboxState() {
+      const cb = document.getElementById('surpriseShareCheckbox');
+      if (!cb) return;
+      const active = hasActiveShare();
+      cb.disabled = !active;
+      cb.checked = active;
+      const parentLabel = cb.parentElement;
+      if (parentLabel) {
+        parentLabel.classList.toggle('opacity-50', !active);
+        parentLabel.classList.toggle('cursor-not-allowed', !active);
+      }
+    }
+
+    function setWorldHiddenMode(hidden) {
+      state.worldHidden = Boolean(hidden);
+      saveState();
+
+      const sheet = document.getElementById('glassSheet');
+      const worldBar = document.getElementById('worldModeBar');
+      const toggleBtn = document.getElementById('toggleWorldModeBtn');
+      const topWorldBtn = document.getElementById('topWorldCenterBtn');
+      const dragHandle = document.getElementById('sheetDragHandle');
+
+      if (sheet) {
+        sheet.classList.toggle('sheet-hidden-down', state.worldHidden);
+      }
+      if (worldBar) {
+        worldBar.classList.toggle('hidden', !state.worldHidden);
+      }
+      if (toggleBtn) {
+        toggleBtn.classList.toggle('glass-btn-active', state.worldHidden);
+      }
+      if (topWorldBtn) {
+        topWorldBtn.classList.toggle('glass-btn-active', state.worldHidden);
+      }
+      if (dragHandle) {
+        dragHandle.setAttribute('aria-valuenow', state.worldHidden ? '100' : '0');
+      }
+      document.body.classList.toggle('world-locked', state.worldHidden);
+
+
+
+
+
+    }
+
+    function renderHeaderAndSync() {
+      const badge = document.getElementById('userBadge');
+      const subStatus = document.getElementById('headerSubStatus');
+      const quickNameInput = document.getElementById('quickNameInput');
+      const shareNameInput = document.getElementById('shareNameInput');
+      const shareCodeInput = document.getElementById('shareCodeInput');
+      const syncModeTag = document.getElementById('syncModeTag');
+      const activeShareCodeText = document.getElementById('activeShareCodeText');
+      const activeParticipantText = document.getElementById('activeParticipantText');
+      const trashBadge = document.getElementById('trashCountBadge');
+
+      const displayBadge = getDisplayBadge();
+      if (badge) badge.textContent = displayBadge;
+
+      if (quickNameInput && document.activeElement !== quickNameInput) {
+        quickNameInput.value = state.userName || '';
+      }
+      if (shareNameInput && document.activeElement !== shareNameInput) {
+        shareNameInput.value = state.userName || '';
+      }
+      if (shareCodeInput && document.activeElement !== shareCodeInput) {
+        shareCodeInput.value = state.shareCode || '';
+      }
+
+      const activeCode = (state.shareCode || '').trim();
+      const modeLabel = activeCode ? `Deelcode ${activeCode}` : 'Lokaal';
+      if (subStatus) {
+        subStatus.textContent = `Kerstlijstje • 2026 • ${modeLabel}`;
+      }
+      if (syncModeTag) {
+        syncModeTag.textContent = activeCode ? `Gedeeld (${activeCode})` : 'Alleen lokaal';
+        syncModeTag.className = activeCode
+          ? 'text-[11px] sm:text-xs font-bold text-emerald-300 shrink-0'
+          : 'text-[11px] sm:text-xs font-semibold text-slate-300/80 shrink-0';
+      }
+      if (activeShareCodeText) {
+        activeShareCodeText.textContent = activeCode || 'Geen (alleen lokaal)';
+        activeShareCodeText.className = activeCode ? 'font-bold text-emerald-300' : 'font-bold text-sky-300';
+      }
+      if (activeParticipantText) {
+        activeParticipantText.textContent = hasValidName() ? state.userName.trim() : 'Niet ingesteld';
+        activeParticipantText.className = hasValidName() ? 'font-bold text-emerald-300' : 'font-bold text-amber-300';
+      }
+
+      const deletedCount = state.deletedItems.length;
+      if (trashBadge) {
+        trashBadge.textContent = String(deletedCount);
+        trashBadge.classList.toggle('hidden', deletedCount === 0);
+      }
+      const mobileTrashBadge = document.getElementById('mobileTrashCountBadge');
+      if (mobileTrashBadge) {
+        mobileTrashBadge.textContent = String(deletedCount);
+        mobileTrashBadge.classList.toggle('hidden', deletedCount === 0);
+      }
+
+      const totalCount = state.items.length;
+      ['itemCountPill', 'shareItemCountPill', 'logItemCountPill'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = `${totalCount} ${totalCount === 1 ? 'item' : 'items'}`;
+      });
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    function renderBudget() {
+      const totalSpent = state.items.reduce((acc, it) => acc + (Number(it.price) || 0), 0);
+      const checkedSpent = state.items
+        .filter((it) => it.checked)
+        .reduce((acc, it) => acc + (Number(it.price) || 0), 0);
+      const target = Math.max(1, Number(state.budgetTarget) || 400);
+      const pct = Math.min(100, Math.round((checkedSpent / target) * 100));
+
+      const totalEl = document.getElementById('totalBudgetSpent');
+      const targetEl = document.getElementById('budgetTargetLabel');
+      const checkedEl = document.getElementById('checkedAmountLabel');
+      const pctEl = document.getElementById('budgetPercentLabel');
+      const barEl = document.getElementById('budgetProgressBar');
+      const sliderEl = document.getElementById('budgetRangeSlider');
+
+      if (totalEl) totalEl.textContent = formatEuro(checkedSpent);
+      if (targetEl) targetEl.textContent = `/ ${formatEuro(target)} doel`;
+      if (checkedEl) checkedEl.textContent = `Totaal lijst: ${formatEuro(totalSpent)}`;
+      if (pctEl) pctEl.textContent = `${pct}% van budget`;
+      if (barEl) barEl.style.width = `${pct}%`;
+      if (sliderEl && document.activeElement !== sliderEl) {
+        sliderEl.value = String(target);
+
+      }
+
+      document.querySelectorAll('.budget-preset-btn').forEach((btn) => {
+        const val = Number(btn.getAttribute('data-budget-preset'));
+        btn.classList.toggle('glass-btn-active', val === Number(state.budgetTarget));
+      });
+    }
+
+    function renderCategories() {
+      const row = document.getElementById('categoryFilterRow');
+      if (!row) return;
+      row.innerHTML = '';
+
+
+      CATEGORIES.forEach((cat) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const isActive = state.selectedCategory === cat;
+        btn.className = `mobile-cat-btn px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap shrink-0 transition ${
+          isActive
+            ? 'glass-btn glass-btn-active text-white'
+            : 'glass-card text-slate-300 hover:text-white'
+        }`;
+        btn.textContent = cat;
+        btn.addEventListener('click', () => {
+          state.selectedCategory = cat;
+          saveState();
+          renderCategories();
+          renderWishlist();
+        });
+        row.appendChild(btn);
+      });
+    }
+
+    function renderWishlist() {
+      renderBudget();
+      const container = document.getElementById('wishlistItemsContainer');
+      if (!container) return;
+
+      const q = (state.searchQuery || '').trim().toLowerCase();
+      let list = state.items.filter((item) => {
+        const catMatch = state.selectedCategory === 'Alles' || item.category === state.selectedCategory;
+        const textMatch =
+          !q ||
+          (item.name || '').toLowerCase().includes(q) ||
+          (item.note || '').toLowerCase().includes(q) ||
+          (item.category || '').toLowerCase().includes(q);
+        return catMatch && textMatch;
+      });
+
+      if (state.sortBy === 'price-desc') {
+        list.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
+      } else if (state.sortBy === 'price-asc') {
+        list.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+      } else if (state.sortBy === 'name-asc') {
+        list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'nl'));
+      }
+
+      if (list.length === 0) {
+        container.innerHTML = `
+          <div class="glass-card rounded-2xl p-6 text-center text-sm text-slate-300/80">
+            Geen items gevonden die aan je filter voldoen.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = '';
+      list.forEach((item) => {
+        const card = document.createElement('div');
+        card.className = 'glass-card rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-3 sm:gap-4';
+
+        const left = document.createElement('div');
+        left.className = 'min-w-0 flex-1 space-y-1';
+
+        const topRow = document.createElement('div');
+        topRow.className = 'flex flex-wrap items-center gap-2';
+
+        const titleEl = document.createElement('button');
+        titleEl.type = 'button';
+        titleEl.className = `text-left text-sm sm:text-lg font-extrabold hover:text-sky-300 transition ${
+          item.checked ? 'line-through text-slate-400' : 'text-white'
+        }`;
+        titleEl.textContent = item.name;
+        titleEl.addEventListener('click', () => openItemDetail(item.id));
+
+        const catBadge = document.createElement('span');
+        catBadge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-500/15 text-sky-200 border border-sky-400/25 whitespace-nowrap';
+        catBadge.textContent = item.category || 'Overig';
+
+        topRow.appendChild(titleEl);
+        topRow.appendChild(catBadge);
+
+        if (item.surpriseShare) {
+          const codeBadge = document.createElement('span');
+          codeBadge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-200 border border-amber-400/25 whitespace-nowrap';
+          codeBadge.textContent = 'Deelcode';
+          topRow.appendChild(codeBadge);
+        }
+
+        const noteEl = document.createElement('p');
+        noteEl.className = 'text-xs sm:text-sm text-slate-300/80 truncate';
+        noteEl.textContent = item.note || 'Geen extra notitie toegevoegd.';
+
+        const priceRow = document.createElement('div');
+        priceRow.className = 'flex items-center gap-2.5 flex-wrap pt-0.5';
+
+        const priceEl = document.createElement('span');
+        priceEl.className = 'text-sm font-extrabold text-sky-300 whitespace-nowrap';
+        priceEl.textContent = formatEuro(item.price);
+
+        priceRow.appendChild(priceEl);
+
+        if (item.link) {
+          const linkBtn = document.createElement('button');
+          linkBtn.type = 'button';
+          linkBtn.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-sky-500/15 hover:bg-sky-500/25 text-sky-200 border border-sky-400/30 whitespace-nowrap transition';
+          linkBtn.innerHTML = '<span>Link Openen</span><span>↗</span>';
+          linkBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            triggerOpenLink(item.link);
+          });
+          priceRow.appendChild(linkBtn);
+        }
+
+        left.appendChild(topRow);
+        left.appendChild(noteEl);
+        left.appendChild(priceRow);
+
+        const actions = document.createElement('div');
+        actions.className = 'flex items-center gap-1.5 sm:gap-2 shrink-0';
+
+        const checkBtn = document.createElement('button');
+        checkBtn.type = 'button';
+        checkBtn.title = item.checked ? 'Markeer als niet afgevinkt' : 'Markeer als afgevinkt';
+        checkBtn.className = `glass-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-bold ${
+          item.checked ? 'glass-btn-active text-emerald-300' : 'text-slate-200'
+        }`;
+        checkBtn.textContent = '✓';
+        checkBtn.addEventListener('click', () => {
+          item.checked = !item.checked;
+          addLogEntry(`Item ${item.checked ? 'afgevinkt' : 'heropend'}: ${item.name}`);
+          saveState();
+          renderWishlist();
+          renderActivityLog();
+        });
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.title = 'Verwijder item';
+        delBtn.className = 'glass-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-slate-200 hover:text-rose-300';
+        delBtn.textContent = '✕';
+        delBtn.addEventListener('click', () => {
+          pendingDeleteId = item.id;
+          const sub = document.getElementById('deleteConfirmSubtitle');
+          if (sub) sub.textContent = `"${item.name}" wordt verplaatst naar de prullenbak.`;
+          openAnimatedModal('deleteConfirmModal', 'deleteConfirmCard');
+        });
+
+        actions.appendChild(checkBtn);
+        actions.appendChild(delBtn);
+
+        card.appendChild(left);
+        card.appendChild(actions);
+        container.appendChild(card);
+      });
+    }
+
+    function openItemDetail(itemId) {
+      const item = state.items.find((it) => it.id === itemId);
+      if (!item) return;
+
+      currentDetailLink = item.link || '';
+      document.getElementById('detailCategoryBadge').textContent = item.category || 'Overig';
+      document.getElementById('detailTitle').textContent = item.name;
+      document.getElementById('detailPrice').textContent = formatEuro(item.price);
+      document.getElementById('detailNote').textContent = item.note || 'Geen extra notitie beschikbaar voor dit item.';
+
+      const linkWrap = document.getElementById('detailLinkWrap');
+      if (currentDetailLink) {
+        linkWrap.classList.remove('hidden');
+      } else {
+        linkWrap.classList.add('hidden');
+      }
+
+      openAnimatedModal('detailModal', 'detailCard');
+    }
+
+    function renderActivityLog() {
+      const gateCard = document.getElementById('logGateCard');
+      const listEl = document.getElementById('activityLogList');
+      const subtitleEl = document.getElementById('logSubtitleText');
+      const searchInput = document.getElementById('searchLogInput');
+
+      if (searchInput && document.activeElement !== searchInput) {
+        searchInput.value = state.logSearchQuery || '';
+      }
+
+      const unlocked = hasValidName() && hasActiveShare();
+
+      if (gateCard) {
+        gateCard.classList.toggle('hidden', unlocked);
+      }
+      if (listEl) {
+        listEl.classList.toggle('hidden', !unlocked);
+      }
+      if (subtitleEl) {
+        subtitleEl.textContent = unlocked
+          ? `Actieve log voor ${state.userName.trim()} • Code ${state.shareCode.trim()}`
+          : 'Toegang & voorwaarden voor logweergave';
+      }
+
+      if (!unlocked || !listEl) return;
+
+      const q = (state.logSearchQuery || '').trim().toLowerCase();
+      const filteredLogs = state.logs.filter((entry) => {
+        if (!q) return true;
+        return (entry.text || '').toLowerCase().includes(q) || (entry.time || '').toLowerCase().includes(q);
+      });
+
+      if (filteredLogs.length === 0) {
+        listEl.innerHTML = `
+          <div class="glass-card rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-300/80">
+            ${q ? 'Geen logregels gevonden voor deze zoekopdracht.' : 'Nog geen activiteiten gelogd in deze sessie.'}
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = '';
+      filteredLogs.forEach((entry) => {
+        const row = document.createElement('div');
+        row.className = 'glass-card rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-xs sm:text-sm';
+        const message = document.createElement('span');
+        message.className = 'text-slate-100';
+        message.textContent = entry.text || '';
+        const time = document.createElement('span');
+        time.className = 'text-sky-300/90 font-semibold shrink-0';
+        time.textContent = entry.time || '';
+        row.appendChild(message);
+        row.appendChild(time);
+        listEl.appendChild(row);
+      });
+    }
+
+    function renderDeletedModal() {
+      const listEl = document.getElementById('deletedItemsList');
+      const searchInput = document.getElementById('searchTrashInput');
+      if (!listEl) return;
+
+      if (searchInput && document.activeElement !== searchInput) {
+        searchInput.value = state.trashSearchQuery || '';
+      }
+
+      const q = (state.trashSearchQuery || '').trim().toLowerCase();
+      const filteredTrash = state.deletedItems.filter((item) => {
+        if (!q) return true;
+        return (
+          (item.name || '').toLowerCase().includes(q) ||
+          (item.category || '').toLowerCase().includes(q) ||
+          (item.note || '').toLowerCase().includes(q)
+        );
+      });
+
+      if (filteredTrash.length === 0) {
+        listEl.innerHTML = `
+          <div class="glass-card rounded-2xl p-5 text-center text-xs sm:text-sm text-slate-300/80">
+            ${q ? 'Geen verwijderde items gevonden voor deze zoekopdracht.' : 'De prullenbak is momenteel leeg.'}
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = '';
+      filteredTrash.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'glass-card rounded-2xl p-3.5 flex items-center justify-between gap-3';
+
+        const info = document.createElement('div');
+        info.className = 'min-w-0';
+        const itemName = document.createElement('div');
+        itemName.className = 'text-sm font-bold text-white truncate';
+        itemName.textContent = item.name || '';
+        const itemMeta = document.createElement('div');
+        itemMeta.className = 'text-xs text-sky-300 font-semibold';
+        itemMeta.textContent = `${formatEuro(item.price)} • ${item.category || 'Overig'}`;
+        info.appendChild(itemName);
+        info.appendChild(itemMeta);
+
+        const restoreBtn = document.createElement('button');
+        restoreBtn.type = 'button';
+        restoreBtn.className = 'glass-btn px-3.5 py-1.5 rounded-xl text-xs font-bold text-emerald-300 shrink-0';
+        restoreBtn.textContent = 'Terugzetten';
+        restoreBtn.addEventListener('click', () => {
+          state.deletedItems = state.deletedItems.filter((d) => d.id !== item.id);
+          state.items.unshift(item);
+          addLogEntry(`Item teruggezet uit prullenbak: ${item.name}`);
+          saveState();
+          renderHeaderAndSync();
+          renderWishlist();
+          renderDeletedModal();
+          renderActivityLog();
+          showToast(`"${item.name}" is teruggezet op je lijst.`);
+        });
+
+        row.appendChild(info);
+        row.appendChild(restoreBtn);
+        listEl.appendChild(row);
+      });
+    }
+
+    function updateDockPillPosition(activeBtn) {
+      const pill = document.getElementById('dockPill');
+      if (!activeBtn || !pill) return;
+      pill.style.width = `${activeBtn.offsetWidth}px`;
+      pill.style.transform = `translateX(${activeBtn.offsetLeft - 6}px)`;
+    }
+
+    function switchTab(tabName) {
+      if (state.worldHidden) {
+        setWorldHiddenMode(false);
+      }
+
+      document.querySelectorAll('.tab-section').forEach((sec) => {
+        sec.classList.toggle('hidden', sec.id !== `tab-${tabName}`);
+      });
+
+      const buttons = Array.from(document.querySelectorAll('.dock-tab-btn'));
+      let activeButton = null;
+
+      buttons.forEach((btn) => {
+        const active = btn.getAttribute('data-tab-target') === tabName;
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('text-slate-300', !active);
+        if (active) activeButton = btn;
+      });
+
+      requestAnimationFrame(() => updateDockPillPosition(activeButton));
+    }
+
+    function bindEvents() {
+      document.querySelectorAll('.dock-tab-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const target = btn.getAttribute('data-tab-target');
+          if (target) switchTab(target);
+        });
+      });
+
+      window.addEventListener('resize', () => {
+        const activeBtn = Array.from(document.querySelectorAll('.dock-tab-btn')).find((b) =>
+          b.classList.contains('text-white')
+        );
+        updateDockPillPosition(activeBtn);
+      });
+
+      ['quickNameInput', 'shareNameInput'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', (e) => {
+          state.userName = e.target.value;
+          saveState();
+          renderHeaderAndSync();
+          renderActivityLog();
+        });
+      });
+
+      document.querySelectorAll('.budget-preset-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.budgetTarget = Number(btn.getAttribute('data-budget-preset')) || 350;
+          saveState();
+          renderBudget();
+        });
+      });
+
+      const budgetSlider = document.getElementById('budgetRangeSlider');
+      if (budgetSlider) {
+        budgetSlider.addEventListener('input', (e) => {
+          state.budgetTarget = Number(e.target.value) || 350;
+          saveState();
+          renderBudget();
+        });
+      }
+
+      const searchInput = document.getElementById('searchItemInput');
+      if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+          state.searchQuery = e.target.value;
+          saveState();
+          renderWishlist();
+        });
+      }
+
+      const sortSelect = document.getElementById('sortItemsSelect');
+      if (sortSelect) {
+        sortSelect.addEventListener('change', (e) => {
+          state.sortBy = e.target.value;
+          saveState();
+          renderWishlist();
+        });
+      }
+
+      document.getElementById('toggleWorldModeBtn').addEventListener('click', () => {
+        setWorldHiddenMode(!state.worldHidden);
+      });
+
+      document.getElementById('topWorldCenterBtn').addEventListener('click', () => {
+        setWorldHiddenMode(true);
+        if (typeof window.__resetGlassWorldCamera === 'function') {
+          window.__resetGlassWorldCamera();
+        }
+      });
+
+      document.getElementById('restoreSheetFromBarBtn').addEventListener('click', () => {
+        setWorldHiddenMode(false);
+      });
+
+      document.getElementById('resetWorldCamBtn').addEventListener('click', () => {
+        if (typeof window.__resetGlassWorldCamera === 'function') {
+          window.__resetGlassWorldCamera();
+          showToast('3D wereld gecentreerd.');
+        }
+      });
+
+      const dragHandle = document.getElementById('sheetDragHandle');
+      if (dragHandle) {
+        let dragStartY = null;
+        dragHandle.addEventListener('click', () => {
+          setWorldHiddenMode(!state.worldHidden);
+        });
+        dragHandle.addEventListener('pointerdown', (e) => {
+          dragStartY = e.clientY;
+        });
+        window.addEventListener('pointerup', (e) => {
+          if (dragStartY === null) return;
+          const deltaY = e.clientY - dragStartY;
+          dragStartY = null;
+          if (deltaY > 36) {
+            setWorldHiddenMode(true);
+          } else if (deltaY < -36) {
+            setWorldHiddenMode(false);
+          }
+        });
+      }
+
+      document.getElementById('joinShareCodeBtn').addEventListener('click', async () => {
+        const nameVal = (document.getElementById('shareNameInput').value || state.userName || '').trim();
+        const codeVal = (document.getElementById('shareCodeInput').value || '').trim().toUpperCase();
+        if (!nameVal) return showToast('Vul eerst je Naam* in om te joinen.');
+        if (!/^GW-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(codeVal)) return showToast('Vul een geldige GW-deelcode in.');
+        try {
+          await gwJoinShare(nameVal, codeVal);
+        } catch (error) {
+          showToast(`Joinen mislukt: ${error.message}`);
+        }
+      });
+
+      document.getElementById('createShareCodeBtn').addEventListener('click', async () => {
+        const nameVal = (document.getElementById('shareNameInput').value || state.userName || '').trim();
+        if (!nameVal) return showToast('Vul eerst je Naam* in om een deelcode aan te maken.');
+        if (!GW_API_ENABLED) return showToast('De API is nog niet ingesteld. Zie backend README.');
+        try {
+          await gwCreateShare(nameVal);
+        } catch (error) {
+          showToast(`Aanmaken mislukt: ${error.message}`);
+        }
+      });
+
+      document.getElementById('leaveShareCodeBtn').addEventListener('click', () => {
+        if (!hasActiveShare()) {
+          showToast('Er is geen actieve deelcode om te verlaten.');
+          return;
+        }
+        pendingLeaveShareCode = true;
+        const sub = document.getElementById('leaveShareSubtitle');
+        if (sub) {
+          sub.textContent = `Weet je zeker dat je deelcode "${state.shareCode}" wilt verlaten?`;
+        }
+        openAnimatedModal('leaveShareConfirmModal', 'leaveShareConfirmCard');
+      });
+
+      document.getElementById('confirmLeaveShareYesBtn').addEventListener('click', async () => {
+        if (!pendingLeaveShareCode) return;
+        pendingLeaveShareCode = false;
+        const oldCode = state.shareCode;
+        const nameVal = (state.userName || '').trim();
+        const token = gwGetShareToken(oldCode);
+        try {
+          if (GW_API_ENABLED && token) {
+            await gwApi(`/api/shares/${encodeURIComponent(oldCode)}/leave`, { method: 'POST', token });
+          }
+        } catch (error) {
+          showToast(`Verlaten mislukt: ${error.message}`);
+          pendingLeaveShareCode = true;
+          return;
+        }
+        gwRemoveShareToken(oldCode);
+        state.shareCode = '';
+        addLogEntry(`${nameVal || 'Deelnemer'} heeft deelcode ${oldCode} verlaten.`);
+        saveState();
+        renderHeaderAndSync();
+        renderActivityLog();
+        closeAnimatedModal('leaveShareConfirmModal', 'leaveShareConfirmCard', () => {
+          showToast(`Je hebt deelcode ${oldCode} verlaten.`);
+        });
+      });
+
+      document.getElementById('confirmLeaveShareNoBtn').addEventListener('click', () => {
+        pendingLeaveShareCode = false;
+        closeAnimatedModal('leaveShareConfirmModal', 'leaveShareConfirmCard');
+      });
+
+      document.getElementById('openAddModalBtn').addEventListener('click', () => {
+        syncSurpriseCheckboxState();
+        openAnimatedModal('addItemModal', 'addItemCard');
+      });
+
+      const mobileInlineAddBtn = document.getElementById('mobileInlineAddBtn');
+      if (mobileInlineAddBtn) {
+        mobileInlineAddBtn.addEventListener('click', () => {
+          syncSurpriseCheckboxState();
+          openAnimatedModal('addItemModal', 'addItemCard');
+        });
+      }
+
+      document.getElementById('closeAddModalBtn').addEventListener('click', () => {
+        closeAnimatedModal('addItemModal', 'addItemCard');
+      });
+
+      document.getElementById('addItemForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = (document.getElementById('itemNameInput').value || '').trim();
+        const price = Number(document.getElementById('itemPriceInput').value || 0);
+        const category = document.getElementById('itemCategorySelect').value || 'Tech & Gear';
+        const link = normalizeUrl(document.getElementById('itemLinkInput').value || '');
+        const note = (document.getElementById('itemNoteInput').value || '').trim();
+        const surpriseShare = hasActiveShare() && document.getElementById('surpriseShareCheckbox').checked;
+
+        if (!name) {
+          showToast('Vul een naam in voor het item.');
+          return;
+        }
+
+        const newItem = {
+          id: 'item-' + Date.now(),
+          name,
+          price: Number.isFinite(price) && price >= 0 ? price : 0,
+          category,
+          link,
+          note,
+          checked: false,
+          surpriseShare
+        };
+
+        state.items.unshift(newItem);
+        addLogEntry(`Item toegevoegd: ${name} (${formatEuro(newItem.price)})`);
+        saveState();
+        renderWishlist();
+        renderActivityLog();
+
+        e.target.reset();
+        closeAnimatedModal('addItemModal', 'addItemCard', () => {
+          showToast(`"${name}" toegevoegd aan de lijst!`);
+        });
+      });
+
+      document.getElementById('closeDetailModalBtn').addEventListener('click', () => {
+        closeAnimatedModal('detailModal', 'detailCard');
+      });
+
+      document.getElementById('detailLinkOpenBtn').addEventListener('click', () => {
+        triggerOpenLink(currentDetailLink);
+      });
+
+      document.getElementById('confirmDeleteYesBtn').addEventListener('click', () => {
+        if (!pendingDeleteId) return;
+        const idx = state.items.findIndex((it) => it.id === pendingDeleteId);
+        pendingDeleteId = null;
+        if (idx !== -1) {
+          const [removed] = state.items.splice(idx, 1);
+          state.deletedItems.unshift(removed);
+          addLogEntry(`Item verwijderd naar prullenbak: ${removed.name}`);
+          saveState();
+          renderHeaderAndSync();
+          renderWishlist();
+          renderActivityLog();
+          closeAnimatedModal('deleteConfirmModal', 'deleteConfirmCard', () => {
+            showToast(`"${removed.name}" verplaatst naar prullenbak.`);
+          });
+        } else {
+          closeAnimatedModal('deleteConfirmModal', 'deleteConfirmCard');
+        }
+      });
+
+      document.getElementById('confirmDeleteNoBtn').addEventListener('click', () => {
+        pendingDeleteId = null;
+        closeAnimatedModal('deleteConfirmModal', 'deleteConfirmCard');
+      });
+
+      document.getElementById('openTrashBtn').addEventListener('click', () => {
+        renderDeletedModal();
+        openAnimatedModal('deletedItemsModal', 'deletedItemsCard');
+      });
+
+      const mobileInlineTrashBtn = document.getElementById('mobileInlineTrashBtn');
+      if (mobileInlineTrashBtn) {
+        mobileInlineTrashBtn.addEventListener('click', () => {
+          renderDeletedModal();
+          openAnimatedModal('deletedItemsModal', 'deletedItemsCard');
+        });
+      }
+
+      document.getElementById('closeDeletedModalBtn').addEventListener('click', () => {
+        closeAnimatedModal('deletedItemsModal', 'deletedItemsCard');
+      });
+
+      const searchTrashInput = document.getElementById('searchTrashInput');
+      if (searchTrashInput) {
+        searchTrashInput.addEventListener('input', (e) => {
+          state.trashSearchQuery = e.target.value;
+          saveState();
+          renderDeletedModal();
+        });
+      }
+
+      const searchLogInput = document.getElementById('searchLogInput');
+      if (searchLogInput) {
+        searchLogInput.addEventListener('input', (e) => {
+          state.logSearchQuery = e.target.value;
+          saveState();
+          renderActivityLog();
+        });
+      }
+
+
+
+
+
+
+
+
+
+
+
+
+      document.getElementById('exportJsonBtn')?.addEventListener('click', gwExportJson);
+      document.getElementById('importJsonBtn')?.addEventListener('click', () => {
+        document.getElementById('importJsonInput')?.click();
+      });
+      document.getElementById('importJsonInput')?.addEventListener('change', async (e) => {
+        try {
+          await gwImportJson(e.target.files?.[0]);
+        } catch (error) {
+          showToast(`Import mislukt: ${error.message}`);
+        } finally {
+          e.target.value = '';
+        }
+      });
+    }
+
+    function createGlassWaveEarthTexture() {
+      const texCanvas = document.createElement('canvas');
+      texCanvas.width = 512;
+      texCanvas.height = 256;
+      const ctx = texCanvas.getContext('2d');
+      const imgData = ctx.createImageData(512, 256);
+      const data = imgData.data;
+
+      // Vloeiende 3D sferische ruis voor realistische continenten & wolken (zonder ovalen of pixelranden)
+      function fbm3D(x, y, z) {
+        let v = 0;
+        let amp = 0.55;
+        let freq = 1.65;
+        for (let o = 0; o < 5; o++) {
+          const n =
+            Math.sin(x * freq + Math.cos(z * freq * 1.15) * 1.4) *
+              Math.cos(y * freq * 1.2 + Math.sin(x * freq * 0.9) * 1.2) +
+            0.5 * Math.sin((x + y - z) * freq * 1.45);
+          v += n * amp;
+          freq *= 2.08;
+          amp *= 0.48;
+        }
+        return v;
+      }
+
+      for (let py = 0; py < 256; py++) {
+        const vNorm = py / 255;
+        const theta = vNorm * Math.PI;
+        const sinT = Math.sin(theta);
+        const cosT = Math.cos(theta);
+        const latAbs = Math.abs(cosT);
+
+        for (let px = 0; px < 512; px++) {
+          const uNorm = px / 512;
+          const phi = uNorm * Math.PI * 2;
+          const sx = sinT * Math.cos(phi);
+          const sy = cosT;
+          const sz = sinT * Math.sin(phi);
+
+          const heightVal = fbm3D(sx + 0.4, sy - 0.2, sz + 0.7);
+          const detailVal = fbm3D(sx * 2.3 - 1.1, sy * 2.1 + 0.6, sz * 2.3 - 0.5);
+          const cloudVal = fbm3D(sx * 1.9 + 2.4, sy * 2.4 - 1.3, sz * 1.9 + 1.1);
+
+          let r, g, b;
+
+          if (latAbs > 0.87 + heightVal * 0.05) {
+            // IJs- en poolkappen
+            r = 215;
+            g = 238;
+            b = 252;
+          } else if (heightVal > 0.14) {
+            // Organische continenten (bosgroen, hoogland & warme woestijntinten)
+            const landElev = Math.min(1, (heightVal - 0.14) * 2.2);
+            const aridity = Math.max(0, Math.min(1, 0.55 - latAbs * 0.8 + detailVal * 0.65));
+
+            const forestR = 26 + landElev * 34;
+            const forestG = 94 + landElev * 42;
+            const forestB = 72 + landElev * 24;
+
+            const desertR = 148 + landElev * 38;
+            const desertG = 122 + landElev * 32;
+            const desertB = 82 + landElev * 20;
+
+            r = forestR * (1 - aridity) + desertR * aridity;
+            g = forestG * (1 - aridity) + desertG * aridity;
+            b = forestB * (1 - aridity) + desertB * aridity;
+          } else if (heightVal > 0.04) {
+            // Kustwater & Glass Wave turkoois overgang
+            const coastT = (heightVal - 0.04) / 0.1;
+            r = 12 + coastT * 18;
+            g = 62 + coastT * 68;
+            b = 128 + coastT * 42;
+          } else {
+            // Diepe oceaan
+            const depthT = Math.max(0, Math.min(1, (heightVal + 0.65) / 0.69));
+            r = 6 + depthT * 8;
+            g = 26 + depthT * 34;
+            b = 68 + depthT * 58;
+          }
+
+          // Subtiele Glass Wave lichtgolf-refractie
+          const waveGlow = Math.max(0, Math.sin(phi * 3 + sy * 4.5 + detailVal * 2.0));
+          r += waveGlow * 7;
+          g += waveGlow * 16;
+          b += waveGlow * 24;
+
+          // Zachte, natuurlijke wolkenflarden
+          if (cloudVal > 0.24) {
+            const cAlpha = Math.min(0.62, (cloudVal - 0.24) * 1.35);
+            r = r * (1 - cAlpha) + 236 * cAlpha;
+            g = g * (1 - cAlpha) + 246 * cAlpha;
+            b = b * (1 - cAlpha) + 255 * cAlpha;
+          }
+
+          const idx = (py * 512 + px) * 4;
+          data[idx] = Math.max(0, Math.min(255, r));
+          data[idx + 1] = Math.max(0, Math.min(255, g));
+          data[idx + 2] = Math.max(0, Math.min(255, b));
+          data[idx + 3] = 255;
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+
+      const texture = new THREE.CanvasTexture(texCanvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.needsUpdate = true;
+      return texture;
+    }
+
+    function initThreeGlobeAndSnow() {
+      const canvas = document.getElementById('globeCanvas');
+      if (!canvas || typeof THREE === 'undefined') return;
+
+      try {
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 0, 5.2);
+
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        // Gebalanceerde verlichting zonder overbelichte witte vlek
+        const ambientLight = new THREE.AmbientLight(0x7dd3fc, 0.52);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xe0f2fe, 0.72);
+        dirLight.position.set(5, 3.5, 5.5);
+        scene.add(dirLight);
+
+        const rimLight = new THREE.PointLight(0x38bdf8, 0.55, 18);
+        rimLight.position.set(-5, -2.5, 4);
+        scene.add(rimLight);
+
+        const earthGeo = new THREE.SphereGeometry(1.65, 80, 80);
+        const globeTexture = createGlassWaveEarthTexture();
+
+        const earthMat = new THREE.MeshPhongMaterial({
+          map: globeTexture,
+          emissive: 0x05132b,
+          specular: 0x38bdf8,
+          shininess: 14,
+          wireframe: false
+        });
+        const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+        earthMesh.position.set(0, 0.12, 0);
+        scene.add(earthMesh);
+
+        // Subtiele Glass Wave atmosfeergloed rond de wereld
+        const atmoGeo = new THREE.SphereGeometry(1.73, 64, 64);
+        const atmoMat = new THREE.MeshBasicMaterial({
+          color: 0x38bdf8,
+          transparent: true,
+          opacity: 0.11,
+          side: THREE.BackSide
+        });
+        const atmoMesh = new THREE.Mesh(atmoGeo, atmoMat);
+        atmoMesh.position.copy(earthMesh.position);
+        scene.add(atmoMesh);
+        const snowCount = 520;
+        const snowGeo = new THREE.BufferGeometry();
+        const snowPositions = new Float32Array(snowCount * 3);
+        const snowSpeeds = new Float32Array(snowCount);
+
+        for (let i = 0; i < snowCount; i++) {
+          snowPositions[i * 3] = (Math.random() - 0.5) * 14;
+          snowPositions[i * 3 + 1] = (Math.random() - 0.5) * 10;
+          snowPositions[i * 3 + 2] = (Math.random() - 0.5) * 8;
+          snowSpeeds[i] = 0.008 + Math.random() * 0.014;
+        }
+        snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+
+        // Procedurele zachte sneeuwvlok-textuur op canvas
+        const snowCanvas = document.createElement('canvas');
+        snowCanvas.width = 64;
+        snowCanvas.height = 64;
+        const sCtx = snowCanvas.getContext('2d');
+        const sGrad = sCtx.createRadialGradient(32, 32, 2, 32, 32, 30);
+        sGrad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        sGrad.addColorStop(0.45, 'rgba(224, 242, 254, 0.85)');
+        sGrad.addColorStop(1, 'rgba(224, 242, 254, 0)');
+        sCtx.fillStyle = sGrad;
+        sCtx.fillRect(0, 0, 64, 64);
+        const snowTexture = new THREE.CanvasTexture(snowCanvas);
+
+        const snowMat = new THREE.PointsMaterial({
+          size: 0.085,
+          map: snowTexture,
+          transparent: true,
+          opacity: 0.85,
+          depthWrite: false
+        });
+        const snowPoints = new THREE.Points(snowGeo, snowMat);
+        scene.add(snowPoints);
+
+        let targetRotY = 0.35;
+        let targetRotX = 0.18;
+        let isDragging = false;
+        let prevX = 0;
+        let prevY = 0;
+
+        window.__resetGlassWorldCamera = function () {
+          targetRotY = 0.35;
+          targetRotX = 0.18;
+        };
+
+        window.addEventListener('pointerdown', (e) => {
+          if (e.target.closest('#glassSheet, nav, button, input, select, textarea, .gw-modal-card')) return;
+          isDragging = true;
+          prevX = e.clientX;
+          prevY = e.clientY;
+        });
+
+        window.addEventListener('pointermove', (e) => {
+          if (!isDragging) return;
+          const dx = e.clientX - prevX;
+          const dy = e.clientY - prevY;
+          prevX = e.clientX;
+          prevY = e.clientY;
+          targetRotY += dx * 0.009;
+          targetRotX = Math.max(-1.35, Math.min(1.35, targetRotX + dy * 0.009));
+        });
+
+        window.addEventListener('pointerup', () => {
+          isDragging = false;
+        });
+
+        window.addEventListener('resize', () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        function animateGlobe() {
+          requestAnimationFrame(animateGlobe);
+
+          // Beweegt continu van links naar rechts (en bij slepen vrij alle kanten op)
+          if (!isDragging) {
+            targetRotY += 0.0045;
+          }
+          earthMesh.rotation.y += (targetRotY - earthMesh.rotation.y) * 0.1;
+          earthMesh.rotation.x += (targetRotX - earthMesh.rotation.x) * 0.1;
+
+          const sPos = snowGeo.attributes.position;
+          for (let i = 0; i < snowCount; i++) {
+            let y = sPos.getY(i) - snowSpeeds[i];
+            let x = sPos.getX(i) + Math.sin(Date.now() * 0.001 + i) * 0.0025;
+            if (y < -5) y = 5;
+            if (x > 7) x = -7;
+            if (x < -7) x = 7;
+            sPos.setY(i, y);
+            sPos.setX(i, x);
+          }
+          sPos.needsUpdate = true;
+
+          renderer.render(scene, camera);
+        }
+
+        animateGlobe();
+      } catch (err) {
+        console.error('3D globe fout:', err);
+      }
+    }
+
+    // Glass Wave deployment gate. This is a deterrent, not cryptographic source protection.
+    // GitHub Pages serves public HTML/JS, so never put secrets in this file.
+    const GW_CANONICAL_HOST = 'royiess.github.io';
+    const GW_CANONICAL_PATH = '/SICKerstmis/';
+    let gwBlockedOverlay = null;
+    let gwGateObserver = null;
+
+    function gwIsCanonicalDeployment() {
+      const path = window.location.pathname;
+      const normalizedPath = path.endsWith('/') ? path : `${path}/`;
+      return window.location.protocol === 'https:' &&
+        window.location.hostname.toLowerCase() === GW_CANONICAL_HOST &&
+        normalizedPath === GW_CANONICAL_PATH;
+    }
+
+    function gwShowDeploymentBlock() {
+      if (!document.body) return;
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      document.body.inert = true;
+
+      if (!gwBlockedOverlay || !gwBlockedOverlay.isConnected) {
+        gwBlockedOverlay = document.createElement('div');
+        gwBlockedOverlay.id = 'gw-closed-source-block';
+        gwBlockedOverlay.setAttribute('role', 'alertdialog');
+        gwBlockedOverlay.setAttribute('aria-modal', 'true');
+        gwBlockedOverlay.style.cssText = [
+          'position:fixed', 'inset:0', 'z-index:2147483647', 'display:flex',
+          'align-items:center', 'justify-content:center', 'padding:24px',
+          'background:radial-gradient(ellipse at 50% 20%,rgba(249,115,22,.16),transparent 55%),#05070d',
+          'color:#f8fafc', 'font-family:Inter,Arial,sans-serif', 'text-align:center'
+        ].join(';');
+        gwBlockedOverlay.innerHTML = `
+          <section style="width:min(560px,100%);padding:36px 28px;border:1px solid rgba(251,146,60,.38);border-radius:28px;background:linear-gradient(145deg,rgba(30,41,59,.92),rgba(8,13,25,.97));box-shadow:0 24px 90px rgba(0,0,0,.7),0 0 45px rgba(249,115,22,.10);backdrop-filter:blur(24px)">
+            <div style="width:58px;height:58px;margin:0 auto 20px;border-radius:18px;display:grid;place-items:center;background:rgba(249,115,22,.13);border:1px solid rgba(251,146,60,.45);font-size:30px;color:#fb923c">!</div>
+            <div style="font-size:11px;font-weight:800;letter-spacing:.24em;color:#fdba74">SIC CORP · CLOSED SOURCE</div>
+            <h1 style="margin:12px 0;font-size:clamp(25px,5vw,36px);font-weight:850;letter-spacing:-.04em">Website geblokkeerd</h1>
+            <p style="margin:0 auto;max-width:420px;color:#cbd5e1;line-height:1.7;font-size:14px">Deze Glass Wave-installatie is alleen beschikbaar via het officiële SIC Corp-domein en de goedgekeurde projectlocatie.</p>
+            <div style="margin:22px 0 0;padding:12px 14px;border:1px solid rgba(148,163,184,.18);border-radius:14px;background:rgba(15,23,42,.7);font:12px ui-monospace,monospace;color:#fdba74;overflow-wrap:anywhere">royiess.github.io/SICKerstmis/</div>
+            <p style="margin:18px 0 0;color:#64748b;font-size:11px">Ongeautoriseerde domeinen en gewijzigde projectlocaties worden geweigerd.</p>
+          </section>`;
+        document.body.appendChild(gwBlockedOverlay);
+      }
+    }
+
+    function applyCopyAndDomainGuard() {
+      if (gwIsCanonicalDeployment()) return true;
+      gwShowDeploymentBlock();
+      // Keep the blocking screen present if ordinary page scripts remove or replace it.
+      if (!gwGateObserver) {
+        gwGateObserver = new MutationObserver(() => {
+          if (!gwBlockedOverlay?.isConnected) gwShowDeploymentBlock();
+        });
+        gwGateObserver.observe(document.documentElement, { childList: true, subtree: true });
+      }
+      window.setInterval(() => {
+        if (gwIsCanonicalDeployment()) return;
+        if (!gwBlockedOverlay?.isConnected) gwShowDeploymentBlock();
+      }, 750);
+      return false;
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (!applyCopyAndDomainGuard()) {
+        return;
+      }
+      bindEvents();
+      renderCategories();
+      renderHeaderAndSync();
+      renderWishlist();
+      renderActivityLog();
+      setWorldHiddenMode(state.worldHidden);
+      switchTab('lijst');
+      initThreeGlobeAndSnow();
+
+      if (GW_API_ENABLED && hasActiveShare() && gwGetShareToken()) {
+        gwPullSharedState().catch((error) => {
+          console.error('Kon gedeelde lijst niet laden:', error);
+          showToast(`Gedeelde lijst laden mislukt: ${error.message}`);
+        });
+      }
+      if (GW_API_ENABLED) {
+        setInterval(gwPollSharedState, 6000);
+      }
+    });
+
+
+
+
+  </script>
+</body>
+</html>
